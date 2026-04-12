@@ -5,15 +5,23 @@ from app.schemas.recommendation_schema import (
     RecommendationRequest,
     RecommendationResponse,
 )
-from app.core.dependencies import DbSession, CurrentUser
+from app.core.dependencies import DbSession, CurrentUser, OptionalUser
 
 router = APIRouter(prefix="/api/recommendations", tags=["Recommendations"])
 
 
 @router.post("/outfit", response_model=RecommendationResponse)
 async def get_outfit_recommendation(
-    db: DbSession, current_user: CurrentUser, request: RecommendationRequest
+    db: DbSession,
+    request: RecommendationRequest,
+    current_user: OptionalUser = None,
 ):
+    """Generate an outfit recommendation.
+
+    Works for unauthenticated (guest) users — the recommendation is generated
+    but not saved to history.  Pass a Bearer token to persist the result and
+    access it via GET /history.
+    """
     return await RecommendationController.get_outfit(db, current_user, request)
 
 

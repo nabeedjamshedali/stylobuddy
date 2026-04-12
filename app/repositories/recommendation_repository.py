@@ -33,3 +33,24 @@ class RecommendationRepository:
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def set_saved(self, rec_id: str, user_id: str, saved: bool) -> OutfitRecommendation | None:
+        rec = await self.get_by_id(rec_id, user_id)
+        if not rec:
+            return None
+        rec.is_saved = saved
+        await self.db.flush()
+        return rec
+
+    async def get_saved(self, user_id: str, limit: int = 50) -> list[OutfitRecommendation]:
+        stmt = (
+            select(OutfitRecommendation)
+            .where(
+                OutfitRecommendation.user_id == user_id,
+                OutfitRecommendation.is_saved.is_(True),
+            )
+            .order_by(OutfitRecommendation.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

@@ -10,6 +10,11 @@ engine = create_async_engine(
     config.DATABASE_URL,
     echo=config.DEBUG,
     pool_pre_ping=True,
+    # PostgreSQL / Supabase pool settings
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,          # recycle connections every 30 min
 )
 
 async_session_factory = async_sessionmaker(

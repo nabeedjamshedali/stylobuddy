@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Integer, JSON, DateTime, ForeignKey, func
+from sqlalchemy import String, Integer, Boolean, JSON, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -22,6 +22,8 @@ class OutfitRecommendation(Base):
     prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
     llm_model: Mapped[str] = mapped_column(String(100), nullable=False)
     token_usage: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Whether the user explicitly saved this look (shown on /saved page)
+    is_saved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

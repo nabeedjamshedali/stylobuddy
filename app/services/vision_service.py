@@ -2,6 +2,7 @@ import base64
 import json
 import os
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import config
@@ -20,15 +21,34 @@ class VisionService:
         self.catalog_repo = CatalogRepository(db)
         self.client = get_client()
 
-    async def analyze_image(self, image_path: str) -> ClothingAnalysis:
-        """Send a clothing image to GPT-4o vision and get structured analysis."""
+    async def _load_image(self, image_url: str) -> tuple[bytes, str]:
+        """Load image bytes and mime type from a URL or local path."""
+        if image_url.startswith("http://") or image_url.startswith("https://"):
+            async with httpx.AsyncClient(timeout=30) as http_client:
+                response = await http_client.get(image_url, follow_redirects=True)
+                response.raise_for_status()
+                image_bytes = response.content
+            # Detect mime from content-type header or fall back to jpeg
+            content_type = response.headers.get("content-type", "image/jpeg")
+            mime_type = content_type.split(";")[0].strip()
+            return image_bytes, mime_type
+        else:
+            # Legacy local file path support
+            local_path = image_url.lstrip("/")
+            if not os.path.exists(local_path):
+                raise FileNotFoundError(f"Image file not found: {local_path}")
+            with open(local_path, "rb") as f:
+                image_bytes = f.read()
+            ext = os.path.splitext(local_path)[1].lower()
+            mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+            mime_type = mime_map.get(ext, "image/jpeg")
+            return image_bytes, mime_type
 
-        with open(image_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
+    async def analyze_image(self, image_url: str) -> ClothingAnalysis:
+        """Send a clothing image (URL or local path) to GPT-4o vision and get structured analysis."""
 
-        ext = os.path.splitext(image_path)[1].lower()
-        mime_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
-        mime_type = mime_map.get(ext, "image/jpeg")
+        image_bytes, mime_type = await self._load_image(image_url)
+        image_data = base64.b64encode(image_bytes).decode("utf-8")
 
         response = await self.client.chat.completions.create(
             model=config.OPENAI_COMPASS_MODEL,
@@ -69,14 +89,12 @@ class VisionService:
             logger.error("Item %s not found", item_id)
             return None
 
-        # Resolve image path from URL
-        image_path = item.image_url.lstrip("/")
-        if not os.path.exists(image_path):
-            logger.error("Image file not found: %s", image_path)
+        if not item.image_url:
+            logger.error("Item %s has no image_url", item_id)
             return None
 
-        logger.info("Analyzing image for item %s: %s", item_id, image_path)
-        analysis = await self.analyze_image(image_path)
+        logger.info("Analyzing image for item %s: %s", item_id, item.image_url)
+        analysis = await self.analyze_image(item.image_url)
 
         item.ai_description = analysis.description
         item.ai_category = analysis.category

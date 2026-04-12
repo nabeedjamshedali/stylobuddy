@@ -15,10 +15,10 @@ class RecommendationController:
 
     @staticmethod
     async def get_outfit(
-        db: AsyncSession, user: User, request: RecommendationRequest
+        db: AsyncSession, user: User | None, request: RecommendationRequest
     ) -> RecommendationResponse:
         service = RecommendationService(db)
-        return await service.get_recommendation(user.id, request)
+        return await service.get_recommendation(user.id if user else None, request)
 
     @staticmethod
     async def get_history(db: AsyncSession, user: User, limit: int = 20) -> list[dict]:
