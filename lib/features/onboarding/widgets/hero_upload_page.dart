@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../shared/widgets/placeholder_photo.dart';
 import '../models/onboarding_page_data.dart';
 import 'onboarding_headline.dart';
 
@@ -19,17 +18,24 @@ class HeroUploadPage extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        const PlaceholderPhoto(icon: Icons.person_outline),
+        Align(
+          alignment: Alignment.topCenter,
+          child: Image.asset(
+            'assets/images/onboarding_hero_portrait.png',
+            fit: BoxFit.cover,
+            width: double.infinity,
+          ),
+        ),
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              stops: const [0.0, 0.45, 0.75, 1.0],
+              stops: const [0.0, 0.45, 0.72, 1.0],
               colors: [
                 AppColors.background.withValues(alpha: 0.0),
-                AppColors.background.withValues(alpha: 0.35),
-                AppColors.background.withValues(alpha: 0.92),
+                AppColors.background.withValues(alpha: 0.25),
+                AppColors.background.withValues(alpha: 0.9),
                 AppColors.background,
               ],
             ),
