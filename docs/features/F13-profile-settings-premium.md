@@ -2,7 +2,7 @@
 
 > The profile hub, personal details and style preference editing, settings (notifications, weather, help and legal, delete account preview, sign out), and the preview-only Plus paywall, plans, checkout and subscription screens. Plan Task 13 (profile part, 13c); prototype `app.js:268-287`. Depends on foundation 03, 04, 07.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** IN PROGRESS · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -103,13 +103,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IN PROGRESS
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/28 PASS
-Regression: —
+Assertions: 27/28 PASS ([U] A01-A27; A28 is [L], pending the parity pass)
+Regression: flutter test — 388 passing (2026-10-17)
 ```
