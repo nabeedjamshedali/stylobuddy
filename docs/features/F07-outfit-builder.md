@@ -2,7 +2,7 @@
 
 > Pick wardrobe pieces with a live preview, then name, classify and save the outfit (create or edit). Plan Task 9; prototype `app.js:158-169`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** IN PROGRESS · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -94,13 +94,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IN PROGRESS
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/19 PASS
-Regression: —
+Assertions: 18/19 PASS (F07-A19 is [L], pending the parity pass)
+Regression: flutter test — 228/228 passed; flutter analyze — No issues found!
 ```

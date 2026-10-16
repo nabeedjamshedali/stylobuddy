@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/builder/cubit/builder_cubit.dart';
 import 'features/calendar/cubit/planner_cubit.dart';
 import 'features/profile/cubit/profile_cubit.dart';
 import 'features/saved/cubit/outfits_cubit.dart';
@@ -35,6 +36,9 @@ class StyloBuddyApp extends StatelessWidget {
         BlocProvider(create: (_) => WardrobeBrowseCubit()),
         BlocProvider(
           create: (context) => ImportCubit(context.read<WardrobeCubit>()),
+        ),
+        BlocProvider(
+          create: (context) => BuilderCubit(context.read<OutfitsCubit>()),
         ),
       ],
       child: MaterialApp.router(

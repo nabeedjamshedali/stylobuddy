@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
 import '../../../shared/models/clothing_item.dart';
+import '../../builder/cubit/builder_cubit.dart';
 import '../cubit/wardrobe_browse_cubit.dart';
 import '../cubit/wardrobe_browse_state.dart';
 import '../cubit/wardrobe_cubit.dart';
@@ -40,7 +41,10 @@ class WardrobeView extends StatelessWidget {
           const SizedBox(height: 15),
           WardrobeActionRow(
             onAddClothing: () => context.push(AppRoutes.import),
-            onBuildOutfit: () => context.push(AppRoutes.builder),
+            onBuildOutfit: () {
+              context.read<BuilderCubit>().start();
+              context.push(AppRoutes.builder);
+            },
           ),
           const SizedBox(height: 15),
           WardrobeSearchField(
