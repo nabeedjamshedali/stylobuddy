@@ -91,5 +91,25 @@ void main() {
       expect(_signup(c), AuthResult.success);
       expect(c.state.error, isNull);
     });
+
+    test(
+      'F02_A21 errors belong to their form and clearInvalid is per field',
+      () {
+        final c = AuthCubit();
+        c.submitLogin(email: '', password: '');
+        expect(c.state.isInvalid(AuthForm.login, AuthFieldName.email), isTrue);
+        expect(
+          c.state.isInvalid(AuthForm.signup, AuthFieldName.email),
+          isFalse,
+        );
+        c.clearInvalid(AuthFieldName.email);
+        expect(c.state.invalidFields, {AuthFieldName.password});
+        _signup(c, password: 'short', confirm: 'short');
+        expect(c.state.errorFor(AuthForm.signup), isNotNull);
+        expect(c.state.errorFor(AuthForm.login), isNull);
+        c.resetForm();
+        expect(c.state.error, isNull);
+      },
+    );
   });
 }

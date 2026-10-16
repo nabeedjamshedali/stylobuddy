@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 /// CSS values used only by the auth screens (styles.css V5.1, tall-viewport
 /// values; last matching rule wins).
 abstract final class AuthTokens {
-  static const green = Color(0xFF087F62);
   static const overline = Color(0xFF137759);
   static const heading = Color(0xFF18241E);
   static const subtitle = Color(0xFF77867C);

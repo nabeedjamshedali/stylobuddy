@@ -15,6 +15,7 @@ class AuthField extends StatefulWidget {
     this.isPassword = false,
     this.keyboardType,
     this.invalid = false,
+    this.onChanged,
   });
 
   final String label;
@@ -23,6 +24,7 @@ class AuthField extends StatefulWidget {
   final bool isPassword;
   final TextInputType? keyboardType;
   final bool invalid;
+  final VoidCallback? onChanged;
 
   @override
   State<AuthField> createState() => _AuthFieldState();
@@ -58,6 +60,7 @@ class _AuthFieldState extends State<AuthField> {
               height: 48,
               child: TextField(
                 controller: widget.controller,
+                onChanged: (_) => widget.onChanged?.call(),
                 obscureText: widget.isPassword && _obscured,
                 keyboardType: widget.keyboardType,
                 autocorrect: false,
@@ -66,7 +69,7 @@ class _AuthFieldState extends State<AuthField> {
                   size: 12,
                   color: AuthTokens.inputInk,
                 ),
-                cursorColor: AuthTokens.green,
+                cursorColor: AppColors.brandGreen,
                 decoration: InputDecoration(
                   hintText: widget.placeholder,
                   hintStyle: AppTextStyles.dmSans(
@@ -83,7 +86,7 @@ class _AuthFieldState extends State<AuthField> {
                   ),
                   enabledBorder: _border(base),
                   focusedBorder: _border(
-                    widget.invalid ? AuthTokens.invalid : AuthTokens.green,
+                    widget.invalid ? AuthTokens.invalid : AppColors.brandGreen,
                   ),
                 ),
               ),
@@ -101,7 +104,7 @@ class _AuthFieldState extends State<AuthField> {
                       style: AppTextStyles.dmSans(
                         size: 11,
                         weight: FontWeight.w600,
-                        color: AuthTokens.green,
+                        color: AppColors.brandGreen,
                       ),
                     ),
                   ),

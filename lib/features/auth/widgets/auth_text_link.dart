@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../auth_tokens.dart';
 
@@ -23,7 +24,7 @@ class AuthTextLink extends StatelessWidget {
           style: AppTextStyles.dmSans(
             size: 11,
             weight: FontWeight.w700,
-            color: AuthTokens.green,
+            color: AppColors.brandGreen,
           ),
         ),
       ),

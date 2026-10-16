@@ -22,6 +22,13 @@ class _ForgotViewState extends State<ForgotView> {
   final _email = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    final cubit = context.read<AuthCubit>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => cubit.resetForm());
+  }
+
+  @override
   void dispose() {
     _email.dispose();
     super.dispose();
@@ -54,7 +61,9 @@ class _ForgotViewState extends State<ForgotView> {
                 controller: _email,
                 placeholder: 'you@example.com',
                 keyboardType: TextInputType.emailAddress,
-                invalid: state.invalidFields.contains(AuthFieldName.email),
+                invalid: state.isInvalid(AuthForm.forgot, AuthFieldName.email),
+                onChanged: () =>
+                    context.read<AuthCubit>().clearInvalid(AuthFieldName.email),
               ),
               AuthSubmitButton(
                 label: 'Send reset link',

@@ -24,62 +24,56 @@ class PersonalizeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go(AppRoutes.intro);
-      },
-      child: Scaffold(
-        backgroundColor: AppColors.white,
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 25),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const ScreenHead(
-                  title: 'Your Style, Your Way',
-                  fallbackRoute: AppRoutes.intro,
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 25),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const ScreenHead(
+                title: 'Your Style, Your Way',
+                fallbackRoute: AppRoutes.intro,
+              ),
+              Text(
+                'What feels most like you?',
+                style: AppTextStyles.manrope(
+                  size: 22,
+                  height: 1.3,
+                  letterSpacing: -.8,
                 ),
-                Text(
-                  'What feels most like you?',
-                  style: AppTextStyles.manrope(
-                    size: 22,
-                    height: 1.3,
-                    letterSpacing: -.8,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Choose a few favorites. You can change them later.',
+                style: AppTextStyles.dmSans(
+                  size: 12,
+                  color: AppColors.muted,
+                  height: 1.6,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final style in personalizeStyles)
+                Padding(
+                  padding: EdgeInsets.only(
+                    bottom: style == personalizeStyles.last ? 0 : 8,
+                  ),
+                  child: OptionTile(
+                    label: style,
+                    selected: style == preselectedStyle,
+                    onTap: () => AppToast.show(context, '$style selected'),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Choose a few favorites. You can change them later.',
-                  style: AppTextStyles.dmSans(
-                    size: 12,
-                    color: AppColors.muted,
-                    height: 1.6,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                for (final style in personalizeStyles)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: style == personalizeStyles.last ? 0 : 8,
-                    ),
-                    child: OptionTile(
-                      label: style,
-                      selected: style == preselectedStyle,
-                      onTap: () => AppToast.show(context, '$style selected'),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                const SectionTitle(title: 'Occasions you dress for'),
-                const _ChipRow(),
-                const SizedBox(height: 20),
-                PrimaryButton(
-                  label: 'Continue →',
-                  onPressed: () => context.push(AppRoutes.auth),
-                ),
-              ],
-            ),
+              const SizedBox(height: 20),
+              const SectionTitle(title: 'Occasions you dress for'),
+              const _ChipRow(),
+              const SizedBox(height: 20),
+              PrimaryButton(
+                label: 'Continue →',
+                onPressed: () => context.push(AppRoutes.auth),
+              ),
+            ],
           ),
         ),
       ),

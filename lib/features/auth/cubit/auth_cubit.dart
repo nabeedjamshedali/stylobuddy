@@ -18,11 +18,11 @@ class AuthCubit extends Cubit<AuthState> {
 
   /// No length rule on login; email and password are only required.
   AuthResult submitLogin({required String email, required String password}) {
-    final invalid = <String>{
+    final invalid = <AuthFieldName>{
       if (!isValidEmail(email)) AuthFieldName.email,
       if (password.isEmpty) AuthFieldName.password,
     };
-    if (invalid.isNotEmpty) return _block(invalid);
+    if (invalid.isNotEmpty) return _block(AuthForm.login, invalid);
     return _accept(email);
   }
 
@@ -32,31 +32,47 @@ class AuthCubit extends Cubit<AuthState> {
     required String password,
     required String confirm,
   }) {
-    final invalid = <String>{
+    final invalid = <AuthFieldName>{
       if (name.trim().length < 2) AuthFieldName.name,
       if (!isValidEmail(email)) AuthFieldName.email,
       if (password.isEmpty) AuthFieldName.password,
       if (confirm.isEmpty) AuthFieldName.confirm,
     };
-    if (invalid.isNotEmpty) return _block(invalid);
-    if (password.length < 8) return _reject(shortPasswordError);
-    if (password != confirm) return _reject(mismatchError);
+    if (invalid.isNotEmpty) return _block(AuthForm.signup, invalid);
+    if (password.length < 8) {
+      return _reject(AuthForm.signup, shortPasswordError);
+    }
+    if (password != confirm) return _reject(AuthForm.signup, mismatchError);
     return _accept(email);
   }
 
   AuthResult submitForgot({required String email}) {
-    if (!isValidEmail(email)) return _block({AuthFieldName.email});
+    if (!isValidEmail(email)) {
+      return _block(AuthForm.forgot, {AuthFieldName.email});
+    }
     return _accept(email);
   }
 
+  /// Drops transient form state; called when a form screen is entered.
+  void resetForm() =>
+      emit(state.copyWith(clearError: true, invalidFields: const {}));
+
+  /// The user edited [field]: its red state goes away.
+  void clearInvalid(AuthFieldName field) {
+    if (!state.invalidFields.contains(field)) return;
+    emit(
+      state.copyWith(invalidFields: {...state.invalidFields}..remove(field)),
+    );
+  }
+
   /// Required-field failure: nothing shown inline except the red border.
-  AuthResult _block(Set<String> invalid) {
-    emit(state.copyWith(clearError: true, invalidFields: invalid));
+  AuthResult _block(AuthForm form, Set<AuthFieldName> invalid) {
+    emit(state.copyWith(form: form, clearError: true, invalidFields: invalid));
     return AuthResult.failure;
   }
 
-  AuthResult _reject(String message) {
-    emit(state.copyWith(error: message, invalidFields: const {}));
+  AuthResult _reject(AuthForm form, String message) {
+    emit(state.copyWith(form: form, error: message, invalidFields: const {}));
     return AuthResult.failure;
   }
 

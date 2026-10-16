@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_routes.dart';
 import 'cubit/onboarding_cubit.dart';
 import 'view/intro_view.dart';
+import 'widgets/onboarding_back_scope.dart';
 import 'view/personalize_view.dart';
 import 'view/welcome_view.dart';
 
@@ -11,8 +12,10 @@ import 'view/welcome_view.dart';
 /// shell route (no bottom nav; the shell only provides state).
 final List<RouteBase> onboardingRoutes = [
   ShellRoute(
-    builder: (context, state, child) =>
-        BlocProvider(create: (_) => OnboardingCubit(), child: child),
+    builder: (context, state, child) => BlocProvider(
+      create: (_) => OnboardingCubit(),
+      child: OnboardingBackScope(location: state.uri.path, child: child),
+    ),
     routes: [
       GoRoute(
         path: AppRoutes.welcome,

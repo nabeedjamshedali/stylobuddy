@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stylobuddy/features/auth/auth_tokens.dart';
+import 'package:stylobuddy/features/auth/widgets/auth_field.dart';
 import 'package:stylobuddy/features/profile/cubit/profile_cubit.dart';
 
 import '../support/f02_harness.dart';
@@ -24,6 +26,18 @@ Future<void> _fillSignup(
   await _type(tester, 2, password);
   await _type(tester, 3, confirm);
 }
+
+Color _border(WidgetTester tester, int field) {
+  final deco = tester
+      .widget<TextField>(find.byType(TextField).at(field))
+      .decoration!;
+  return (deco.enabledBorder! as OutlineInputBorder).borderSide.color;
+}
+
+int _invalidCount(WidgetTester tester) => tester
+    .widgetList<AuthField>(find.byType(AuthField))
+    .where((f) => f.invalid)
+    .length;
 
 void main() {
   group('auth chooser', () {
@@ -121,9 +135,7 @@ void main() {
       expect(find.text('Show'), findsOneWidget);
     });
 
-    testWidgets('F02_A25 login header back is /auth; forgot link pushes', (
-      tester,
-    ) async {
+    testWidgets('F02_A25 login header back is /auth', (tester) async {
       final router = await pumpApp(tester, '/login');
       await tester.tap(find.byKey(const Key('auth-back')));
       await tester.pumpAndSettle();
@@ -378,6 +390,52 @@ void main() {
           expect(find.text(label), findsNothing, reason: '$route $label');
         }
       }
+    });
+  });
+
+  group('form state isolation', () {
+    testWidgets('F02_A18 blank login submit does not redden signup fields', (
+      tester,
+    ) async {
+      final router = await pumpApp(tester, '/login');
+      await tapText(tester, 'Sign in');
+      expect(_invalidCount(tester), 2);
+      await tapText(tester, 'Create an account');
+      expect(pathOf(router), '/signup');
+      expect(_invalidCount(tester), 0);
+      expect(_border(tester, 0), AuthTokens.inputBorder);
+    });
+
+    testWidgets('F02_A21 signup error does not show on login', (tester) async {
+      final router = await pumpApp(tester, '/signup');
+      await _fillSignup(tester, password: 'short', confirm: 'short');
+      await tapText(tester, 'Create account');
+      expect(
+        find.text('Use at least 8 characters for your password.'),
+        findsOneWidget,
+      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Sign in');
+      expect(pathOf(router), '/login');
+      expect(
+        find.text('Use at least 8 characters for your password.'),
+        findsNothing,
+      );
+      expect(_invalidCount(tester), 0);
+    });
+
+    testWidgets('F02_A18 editing an invalid field clears its red state', (
+      tester,
+    ) async {
+      await pumpApp(tester, '/login');
+      await tapText(tester, 'Sign in');
+      expect(_border(tester, 0), AuthTokens.invalid);
+      expect(_border(tester, 1), AuthTokens.invalid);
+      await _type(tester, 0, 'a');
+      await tester.pump();
+      expect(_border(tester, 0), AuthTokens.inputBorder);
+      expect(_border(tester, 1), AuthTokens.invalid);
     });
   });
 }

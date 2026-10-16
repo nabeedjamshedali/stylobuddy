@@ -28,12 +28,11 @@ class IntroView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cubit = context.read<OnboardingCubit>();
     return BlocConsumer<OnboardingCubit, OnboardingState>(
       listenWhen: (previous, current) => current.exit != OnboardingExit.none,
       listener: (context, state) {
         final exit = state.exit;
-        cubit.clearExit();
+        context.read<OnboardingCubit>().clearExit();
         context.go(
           exit == OnboardingExit.finished
               ? AppRoutes.personalize
@@ -42,47 +41,43 @@ class IntroView extends StatelessWidget {
       },
       builder: (context, state) {
         final slide = introSlides[state.slide];
-        return PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) cubit.back();
-          },
-          child: Scaffold(
-            backgroundColor: AppColors.white,
-            body: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) => Padding(
-                  padding: const EdgeInsets.fromLTRB(17, 8, 17, 2),
-                  child: Column(
-                    children: [
-                      _TopRow(
-                        slide: state.slide,
-                        onSkip: () => context.go(AppRoutes.personalize),
+        return Scaffold(
+          backgroundColor: AppColors.white,
+          body: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) => Padding(
+                padding: const EdgeInsets.fromLTRB(17, 8, 17, 2),
+                child: Column(
+                  children: [
+                    _TopRow(
+                      slide: state.slide,
+                      onSkip: () => context.go(AppRoutes.personalize),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: slide.isOccasions
+                            ? OccasionList(
+                                chosen: state.chosenOccasions,
+                                onToggle: context
+                                    .read<OnboardingCubit>()
+                                    .toggleOccasion,
+                              )
+                            : Column(
+                                children: [
+                                  IntroIllustration(
+                                    slide: slide,
+                                    pageHeight: constraints.maxHeight,
+                                  ),
+                                  IntroHeadline(
+                                    title: slide.title,
+                                    description: slide.description,
+                                  ),
+                                ],
+                              ),
                       ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: slide.isOccasions
-                              ? OccasionList(
-                                  chosen: state.chosenOccasions,
-                                  onToggle: cubit.toggleOccasion,
-                                )
-                              : Column(
-                                  children: [
-                                    IntroIllustration(
-                                      slide: slide,
-                                      pageHeight: constraints.maxHeight,
-                                    ),
-                                    IntroHeadline(
-                                      title: slide.title,
-                                      description: slide.description,
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ),
-                      _Bottom(slide: state.slide, cubit: cubit),
-                    ],
-                  ),
+                    ),
+                    _Bottom(slide: state.slide),
+                  ],
                 ),
               ),
             ),
@@ -127,10 +122,9 @@ class _TopRow extends StatelessWidget {
 }
 
 class _Bottom extends StatelessWidget {
-  const _Bottom({required this.slide, required this.cubit});
+  const _Bottom({required this.slide});
 
   final int slide;
-  final OnboardingCubit cubit;
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +137,7 @@ class _Bottom extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2),
             child: ObPrimaryButton(
               label: IntroView.buttonLabel(slide),
-              onPressed: cubit.next,
+              onPressed: () => context.read<OnboardingCubit>().next(),
             ),
           ),
           Padding(
@@ -153,7 +147,7 @@ class _Bottom extends StatelessWidget {
               size: 10.5,
               color: OnboardingTokens.backButton,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              onTap: cubit.back,
+              onTap: () => context.read<OnboardingCubit>().back(),
             ),
           ),
         ],

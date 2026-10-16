@@ -226,4 +226,32 @@ void main() {
       }
     });
   });
+
+  group('system back', () {
+    testWidgets('F02_A11 system back on intro steps back one slide', (
+      tester,
+    ) async {
+      final router = await pumpApp(tester, '/intro');
+      await _toSlide(tester, 2);
+      expect(find.text('3/5'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('2/5'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('1/5'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(pathOf(router), '/welcome');
+    });
+
+    testWidgets('F02_A14 system back on personalize returns to /intro', (
+      tester,
+    ) async {
+      final router = await pumpApp(tester, '/personalize');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(pathOf(router), '/intro');
+    });
+  });
 }

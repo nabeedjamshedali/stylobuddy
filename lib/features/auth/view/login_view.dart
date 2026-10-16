@@ -25,6 +25,13 @@ class _LoginViewState extends State<LoginView> {
   final _password = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    final cubit = context.read<AuthCubit>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => cubit.resetForm());
+  }
+
+  @override
   void dispose() {
     _email.dispose();
     _password.dispose();
@@ -63,7 +70,9 @@ class _LoginViewState extends State<LoginView> {
                 controller: _email,
                 placeholder: 'you@example.com',
                 keyboardType: TextInputType.emailAddress,
-                invalid: state.invalidFields.contains(AuthFieldName.email),
+                invalid: state.isInvalid(AuthForm.login, AuthFieldName.email),
+                onChanged: () =>
+                    context.read<AuthCubit>().clearInvalid(AuthFieldName.email),
               ),
               const SizedBox(height: 15),
               AuthField(
@@ -71,7 +80,13 @@ class _LoginViewState extends State<LoginView> {
                 controller: _password,
                 placeholder: 'Enter your password',
                 isPassword: true,
-                invalid: state.invalidFields.contains(AuthFieldName.password),
+                invalid: state.isInvalid(
+                  AuthForm.login,
+                  AuthFieldName.password,
+                ),
+                onChanged: () => context.read<AuthCubit>().clearInvalid(
+                  AuthFieldName.password,
+                ),
               ),
               const SizedBox(height: 8),
               Align(
@@ -81,9 +96,9 @@ class _LoginViewState extends State<LoginView> {
                   onTap: () => context.push(AppRoutes.forgot),
                 ),
               ),
-              if (state.error != null) ...[
+              if (state.errorFor(AuthForm.login) != null) ...[
                 const SizedBox(height: 15),
-                AuthErrorText(state.error),
+                AuthErrorText(state.errorFor(AuthForm.login)),
               ],
               AuthSubmitButton(
                 label: 'Sign in',

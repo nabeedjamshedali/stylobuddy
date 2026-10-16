@@ -28,6 +28,13 @@ class _SignupViewState extends State<SignupView> {
   final _confirm = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    final cubit = context.read<AuthCubit>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => cubit.resetForm());
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     _email.dispose();
@@ -67,7 +74,9 @@ class _SignupViewState extends State<SignupView> {
                 label: 'Full name',
                 controller: _name,
                 placeholder: 'Your name',
-                invalid: state.invalidFields.contains(AuthFieldName.name),
+                invalid: state.isInvalid(AuthForm.signup, AuthFieldName.name),
+                onChanged: () =>
+                    context.read<AuthCubit>().clearInvalid(AuthFieldName.name),
               ),
               const SizedBox(height: 15),
               AuthField(
@@ -75,7 +84,9 @@ class _SignupViewState extends State<SignupView> {
                 controller: _email,
                 placeholder: 'you@example.com',
                 keyboardType: TextInputType.emailAddress,
-                invalid: state.invalidFields.contains(AuthFieldName.email),
+                invalid: state.isInvalid(AuthForm.signup, AuthFieldName.email),
+                onChanged: () =>
+                    context.read<AuthCubit>().clearInvalid(AuthFieldName.email),
               ),
               const SizedBox(height: 15),
               AuthField(
@@ -83,7 +94,13 @@ class _SignupViewState extends State<SignupView> {
                 controller: _password,
                 placeholder: 'At least 8 characters',
                 isPassword: true,
-                invalid: state.invalidFields.contains(AuthFieldName.password),
+                invalid: state.isInvalid(
+                  AuthForm.signup,
+                  AuthFieldName.password,
+                ),
+                onChanged: () => context.read<AuthCubit>().clearInvalid(
+                  AuthFieldName.password,
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 6, left: 2, bottom: 12),
@@ -100,11 +117,17 @@ class _SignupViewState extends State<SignupView> {
                 controller: _confirm,
                 placeholder: 'Repeat your password',
                 isPassword: true,
-                invalid: state.invalidFields.contains(AuthFieldName.confirm),
+                invalid: state.isInvalid(
+                  AuthForm.signup,
+                  AuthFieldName.confirm,
+                ),
+                onChanged: () => context.read<AuthCubit>().clearInvalid(
+                  AuthFieldName.confirm,
+                ),
               ),
-              if (state.error != null) ...[
+              if (state.errorFor(AuthForm.signup) != null) ...[
                 const SizedBox(height: 15),
-                AuthErrorText(state.error),
+                AuthErrorText(state.errorFor(AuthForm.signup)),
               ],
               AuthSubmitButton(
                 label: 'Create account',
