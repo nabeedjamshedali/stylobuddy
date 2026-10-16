@@ -88,7 +88,9 @@ void main() {
     testWidgets('placeholder outside the shell has a Material ancestor', (
       tester,
     ) async {
-      await tester.pumpWidget(StyloBuddyApp(router: createAppRouter()));
+      await tester.pumpWidget(
+        StyloBuddyApp(router: createAppRouter(initialLocation: '/no-such')),
+      );
       await tester.pumpAndSettle();
       expect(
         find.ancestor(

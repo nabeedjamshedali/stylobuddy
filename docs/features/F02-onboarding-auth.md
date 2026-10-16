@@ -104,13 +104,13 @@ None. Resolved 2026-10-16: signup does not write `ProfileCubit` (matches the pro
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IMPLEMENTED (gate 4 open)
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
-[ ] Gate 4  Live run
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
+[ ] Gate 4  Live run   (F02-A27 pending parity pass)
 
-Assertions: 0/28 PASS
-Regression: —
+Assertions: 27/28 PASS (A27 [L] pending)
+Regression: flutter test 92 passed; flutter analyze clean
 ```
