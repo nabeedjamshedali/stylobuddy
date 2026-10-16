@@ -2,7 +2,7 @@
 
 > A month calendar where saved outfits are planned per day, a chooser for the outfit, and a confirmation screen with date and occasion. Plan Task 11; prototype `app.js:185-198`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** IMPLEMENTED · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -91,13 +91,13 @@ None. Resolved 2026-10-16: `PlannerCubit` owns the draft (`editingOutfitId`, `ed
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IMPLEMENTED
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/22 PASS
-Regression: —
+Assertions: 21/22 PASS (F09-A19 is [L], pending the parity pass)
+Regression: flutter test — 251/251 passed; flutter analyze — No issues found!
 ```

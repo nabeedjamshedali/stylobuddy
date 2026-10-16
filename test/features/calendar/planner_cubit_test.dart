@@ -40,4 +40,37 @@ void main() {
     cubit.remove('2026-10-20');
     expect(cubit.state.planned.containsKey('2026-10-20'), isFalse);
   });
+
+  test('F09_A20 editing draft starts null', () {
+    expect(cubit.state.editingOutfitId, isNull);
+    expect(cubit.state.editingOccasion, isNull);
+  });
+
+  test('F09_A21 startScheduling sets draft without touching other fields', () {
+    final before = cubit.state;
+    cubit.startScheduling(2, 'Casual');
+    expect(cubit.state.editingOutfitId, 2);
+    expect(cubit.state.editingOccasion, 'Casual');
+    expect(cubit.state.planned, before.planned);
+    expect(cubit.state.year, before.year);
+    expect(cubit.state.month, before.month);
+    expect(cubit.state.day, before.day);
+
+    cubit.clearEditing();
+    expect(cubit.state.editingOutfitId, isNull);
+    expect(cubit.state.editingOccasion, isNull);
+    expect(cubit.state.planned, before.planned);
+    expect(cubit.state.year, before.year);
+    expect(cubit.state.month, before.month);
+    expect(cubit.state.day, before.day);
+  });
+
+  test('selectDate jumps to an arbitrary date', () {
+    cubit.selectDate(DateTime(2026, 11, 2));
+    expect((cubit.state.year, cubit.state.month, cubit.state.day), (
+      2026,
+      11,
+      2,
+    ));
+  });
 }
