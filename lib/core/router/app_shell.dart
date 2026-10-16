@@ -24,12 +24,13 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     final current = AppRoutes.tabFor(location);
-    final isHome = Uri.parse(location).path == AppRoutes.home;
-    final router = GoRouter.of(context);
-    // Android back: pop real history if any, else leave /home to exit the app
-    // and send every other screen to /home first.
+    final path = Uri.parse(location).path;
+    // Android back is intercepted only on a tab root other than /home (-> go
+    // home). /home exits the app; drill-down screens (pushed) pop normally.
+    final interceptBack =
+        path != AppRoutes.home && AppRoutes.tabFor(path) == path;
     return PopScope(
-      canPop: isHome || router.canPop(),
+      canPop: !interceptBack,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) context.go(AppRoutes.home);
       },
@@ -87,8 +88,10 @@ class _NavItem extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(glyph,
-              style: AppTextStyles.dmSans(size: 20, color: color, height: 1)),
+          Text(
+            glyph,
+            style: AppTextStyles.dmSans(size: 20, color: color, height: 1),
+          ),
           const SizedBox(height: 3),
           Text(
             label,

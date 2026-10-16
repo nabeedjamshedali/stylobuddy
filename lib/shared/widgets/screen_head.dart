@@ -31,19 +31,30 @@ class ScreenHead extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 19),
       child: Row(
         children: [
-          Material(
-            color: SharedTokens.headButtonBg,
-            borderRadius: BorderRadius.circular(9),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(9),
-              onTap: () => _back(context),
-              child: SizedBox(
-                width: 31,
-                height: 31,
-                child: Center(
-                  child: Text('‹',
-                      style: AppTextStyles.dmSans(
-                          size: 20, color: SharedTokens.headButtonInk)),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 31),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: 1,
+              child: Material(
+                color: SharedTokens.headButtonBg,
+                borderRadius: BorderRadius.circular(9),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(9),
+                  onTap: () => _back(context),
+                  child: SizedBox(
+                    width: 31,
+                    height: 31,
+                    child: Center(
+                      child: Text(
+                        '‹',
+                        style: AppTextStyles.dmSans(
+                          size: 20,
+                          color: SharedTokens.headButtonInk,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -57,7 +68,14 @@ class ScreenHead extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 9),
-          SizedBox(width: 31, child: action),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 31),
+            child: Align(
+              alignment: Alignment.centerRight,
+              widthFactor: 1,
+              child: action,
+            ),
+          ),
         ],
       ),
     );

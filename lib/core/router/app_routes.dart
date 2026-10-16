@@ -1,6 +1,9 @@
 /// One path per prototype route (`pages.*` in app.js); paths equal the
 /// prototype route names. Routes with an id helper expose the bare path as
 /// `<name>Path`.
+///
+/// Navigation contract: bottom-nav tabs use `context.go`; drill-down screens
+/// use `context.push` so system back and `ScreenHead` pop normally.
 abstract final class AppRoutes {
   static const auth = '/auth';
   static const login = '/login';
@@ -84,21 +87,50 @@ abstract final class AppRoutes {
   };
 
   static const _wardrobeGroup = {
-    '/clothing', '/import', '/batch', '/analyzing', '/review', '/builder',
-    '/manual-preview', '/add-confirm', '/filter', '/edit-item',
+    '/clothing',
+    '/import',
+    '/batch',
+    '/analyzing',
+    '/review',
+    '/builder',
+    '/manual-preview',
+    '/add-confirm',
+    '/filter',
+    '/edit-item',
   };
   static const _stylistGroup = {
-    '/stylist', '/occasion', '/generating', '/results', '/result-detail',
-    '/matching', '/match-select', '/match-review', '/match-options',
-    '/matching-progress', '/matching-results', '/matching-detail',
+    '/stylist',
+    '/occasion',
+    '/generating',
+    '/results',
+    '/result-detail',
+    '/matching',
+    '/match-select',
+    '/match-review',
+    '/match-options',
+    '/matching-progress',
+    '/matching-results',
+    '/matching-detail',
     '/styling-options',
   };
   static const _savedGroup = {
-    '/saved', '/saved-detail', '/wear-detail', '/history', '/sharing',
+    '/saved',
+    '/saved-detail',
+    '/wear-detail',
+    '/history',
+    '/sharing',
   };
   static const _profileGroup = {
-    '/profile', '/settings', '/edit-profile', '/edit-style', '/notifications',
-    '/support', '/premium', '/plan', '/purchase', '/subscription',
+    '/profile',
+    '/settings',
+    '/edit-profile',
+    '/edit-style',
+    '/notifications',
+    '/support',
+    '/premium',
+    '/plan',
+    '/purchase',
+    '/subscription',
   };
 
   /// Prototype `render()` tab grouping: which bottom tab a location lights up.

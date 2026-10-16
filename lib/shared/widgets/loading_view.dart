@@ -26,14 +26,20 @@ class LoadingView extends StatelessWidget {
             title,
             textAlign: TextAlign.center,
             style: AppTextStyles.dmSans(
-                size: 16, weight: FontWeight.w700, letterSpacing: -.8),
+              size: 16,
+              weight: FontWeight.w700,
+              letterSpacing: -.8,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             message,
             textAlign: TextAlign.center,
             style: AppTextStyles.dmSans(
-                size: 12, color: AppColors.muted, height: 1.6),
+              size: 12,
+              color: AppColors.muted,
+              height: 1.6,
+            ),
           ),
         ],
       ),

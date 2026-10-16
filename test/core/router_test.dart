@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stylobuddy/app.dart';
@@ -18,8 +20,10 @@ void main() {
     });
 
     test('ignores query strings', () {
-      expect(AppRoutes.tabFor(AppRoutes.clothing('white-shirt')),
-          AppRoutes.wardrobe);
+      expect(
+        AppRoutes.tabFor(AppRoutes.clothing('white-shirt')),
+        AppRoutes.wardrobe,
+      );
       expect(AppRoutes.tabFor(AppRoutes.savedDetail(3)), AppRoutes.saved);
     });
 
@@ -33,7 +37,8 @@ void main() {
   group('app shell', () {
     testWidgets('shows five nav labels at /home', (tester) async {
       await tester.pumpWidget(
-          StyloBuddyApp(router: createAppRouter(initialLocation: '/home')));
+        StyloBuddyApp(router: createAppRouter(initialLocation: '/home')),
+      );
       await tester.pumpAndSettle();
       for (final label in _navLabels) {
         expect(find.text(label), findsOneWidget);
@@ -66,18 +71,51 @@ void main() {
       expect(router.routeInformationProvider.value.uri.path, '/home');
     });
 
+    testWidgets('system back on a pushed drill-down pops normally', (
+      tester,
+    ) async {
+      final router = createAppRouter(initialLocation: '/wardrobe');
+      await tester.pumpWidget(StyloBuddyApp(router: router));
+      await tester.pumpAndSettle();
+      unawaited(router.push('/edit-item'));
+      await tester.pumpAndSettle();
+      expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/edit-item');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/wardrobe');
+    });
+
+    testWidgets('placeholder outside the shell has a Material ancestor', (
+      tester,
+    ) async {
+      await tester.pumpWidget(StyloBuddyApp(router: createAppRouter()));
+      await tester.pumpAndSettle();
+      expect(
+        find.ancestor(
+          of: find.text('Design preview only'),
+          matching: find.byType(Material),
+        ),
+        findsWidgets,
+      );
+    });
+
     testWidgets('on /home system back is not intercepted', (tester) async {
       await tester.pumpWidget(
-          StyloBuddyApp(router: createAppRouter(initialLocation: '/home')));
+        StyloBuddyApp(router: createAppRouter(initialLocation: '/home')),
+      );
       await tester.pumpAndSettle();
       final scope = tester.widget<PopScope>(
-          find.byWidgetPredicate((w) => w is PopScope).first);
+        find.byWidgetPredicate((w) => w is PopScope).first,
+      );
       expect(scope.canPop, isTrue);
     });
 
     testWidgets('unknown location shows the generic preview', (tester) async {
-      await tester.pumpWidget(StyloBuddyApp(
-          router: createAppRouter(initialLocation: '/nope-not-real')));
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          router: createAppRouter(initialLocation: '/nope-not-real'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Design preview only'), findsOneWidget);
     });

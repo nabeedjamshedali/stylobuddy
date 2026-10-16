@@ -30,13 +30,14 @@ abstract final class AppTextStyles {
     Color? color,
     double? height,
     double? letterSpacing,
-  }) =>
-      _style('DMSans',
-          size: size,
-          weight: weight,
-          color: color,
-          height: height,
-          letterSpacing: letterSpacing);
+  }) => _style(
+    'DMSans',
+    size: size,
+    weight: weight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 
   static TextStyle manrope({
     double size = 14,
@@ -44,11 +45,12 @@ abstract final class AppTextStyles {
     Color? color,
     double? height,
     double? letterSpacing,
-  }) =>
-      _style('Manrope',
-          size: size,
-          weight: weight,
-          color: color,
-          height: height,
-          letterSpacing: letterSpacing);
+  }) => _style(
+    'Manrope',
+    size: size,
+    weight: weight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 }

@@ -20,11 +20,10 @@ class PlannerState {
     int? year,
     int? month,
     int? day,
-  }) =>
-      PlannerState(
-        planned: planned ?? this.planned,
-        year: year ?? this.year,
-        month: month ?? this.month,
-        day: day ?? this.day,
-      );
+  }) => PlannerState(
+    planned: planned ?? this.planned,
+    year: year ?? this.year,
+    month: month ?? this.month,
+    day: day ?? this.day,
+  );
 }

@@ -9,14 +9,17 @@ class ProfileCubit extends Cubit<ProfileState> {
       emit(state.copyWith(name: name, email: email));
 
   void togglePreference(PreferenceField field, String value) {
-    final current =
-        field == PreferenceField.styles ? state.styles : state.occasions;
+    final current = field == PreferenceField.styles
+        ? state.styles
+        : state.occasions;
     final next = current.contains(value)
         ? current.where((v) => v != value).toList()
         : [...current, value];
-    emit(field == PreferenceField.styles
-        ? state.copyWith(styles: next)
-        : state.copyWith(occasions: next));
+    emit(
+      field == PreferenceField.styles
+          ? state.copyWith(styles: next)
+          : state.copyWith(occasions: next),
+    );
   }
 
   void setDailyNotifications(bool v) =>

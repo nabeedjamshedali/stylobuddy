@@ -147,8 +147,10 @@ class _Badge extends StatelessWidget {
       height: 22,
       alignment: Alignment.center,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Text(glyph,
-          style: AppTextStyles.dmSans(size: 12, color: AppColors.white)),
+      child: Text(
+        glyph,
+        style: AppTextStyles.dmSans(size: 12, color: AppColors.white),
+      ),
     );
   }
 }

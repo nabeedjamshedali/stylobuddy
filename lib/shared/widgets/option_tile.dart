@@ -60,7 +60,9 @@ class OptionTile extends StatelessWidget {
                     Text(
                       description!,
                       style: AppTextStyles.dmSans(
-                          size: 12, color: SharedTokens.optionDescription),
+                        size: 10,
+                        color: SharedTokens.optionDescription,
+                      ),
                     ),
                   ],
                 ],

@@ -19,11 +19,13 @@ class PlannerCubit extends Cubit<PlannerState> {
   void navigate(int offset) {
     final target = DateTime(state.year, state.month + offset, 1);
     final length = DateTime(target.year, target.month + 1, 0).day;
-    emit(state.copyWith(
-      year: target.year,
-      month: target.month,
-      day: state.day > length ? length : state.day,
-    ));
+    emit(
+      state.copyWith(
+        year: target.year,
+        month: target.month,
+        day: state.day > length ? length : state.day,
+      ),
+    );
   }
 
   void plan(String key, PlannedEntry entry) =>

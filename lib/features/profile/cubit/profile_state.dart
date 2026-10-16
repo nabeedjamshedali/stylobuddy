@@ -44,18 +44,17 @@ class ProfileState {
     String? climate,
     String? plan,
     String? billingCycle,
-  }) =>
-      ProfileState(
-        name: name ?? this.name,
-        email: email ?? this.email,
-        styles: styles ?? this.styles,
-        occasions: occasions ?? this.occasions,
-        dailyNotifications: dailyNotifications ?? this.dailyNotifications,
-        plannedNotifications: plannedNotifications ?? this.plannedNotifications,
-        productNotifications: productNotifications ?? this.productNotifications,
-        weatherConsent: weatherConsent ?? this.weatherConsent,
-        climate: climate ?? this.climate,
-        plan: plan ?? this.plan,
-        billingCycle: billingCycle ?? this.billingCycle,
-      );
+  }) => ProfileState(
+    name: name ?? this.name,
+    email: email ?? this.email,
+    styles: styles ?? this.styles,
+    occasions: occasions ?? this.occasions,
+    dailyNotifications: dailyNotifications ?? this.dailyNotifications,
+    plannedNotifications: plannedNotifications ?? this.plannedNotifications,
+    productNotifications: productNotifications ?? this.productNotifications,
+    weatherConsent: weatherConsent ?? this.weatherConsent,
+    climate: climate ?? this.climate,
+    plan: plan ?? this.plan,
+    billingCycle: billingCycle ?? this.billingCycle,
+  );
 }

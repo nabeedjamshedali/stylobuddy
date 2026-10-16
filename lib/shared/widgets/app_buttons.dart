@@ -47,9 +47,11 @@ class _AppButton extends StatelessWidget {
             padding: padding,
             child: Center(
               widthFactor: 1,
-              child: Text(label,
-                  textAlign: TextAlign.center,
-                  style: textStyle.copyWith(color: foreground)),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: textStyle.copyWith(color: foreground),
+              ),
             ),
           ),
         ),
@@ -74,15 +76,15 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _AppButton(
-        label: label,
-        onPressed: onPressed,
-        fullWidth: fullWidth,
-        background: AppColors.primaryButton,
-        foreground: AppColors.white,
-        radius: 9,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        textStyle: AppTextStyles.dmSans(size: 12, weight: FontWeight.w700),
-      );
+    label: label,
+    onPressed: onPressed,
+    fullWidth: fullWidth,
+    background: AppColors.primaryButton,
+    foreground: AppColors.white,
+    radius: 9,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    textStyle: AppTextStyles.dmSans(size: 12, weight: FontWeight.w700),
+  );
 }
 
 /// Prototype `.secondary` (radius 11, 12/15 padding, green text and border).
@@ -100,16 +102,16 @@ class SecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _AppButton(
-        label: label,
-        onPressed: onPressed,
-        fullWidth: fullWidth,
-        background: AppColors.white,
-        foreground: AppColors.green,
-        borderColor: SharedTokens.secondaryBorder,
-        radius: 11,
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-        textStyle: AppTextStyles.dmSans(size: 12, weight: FontWeight.w700),
-      );
+    label: label,
+    onPressed: onPressed,
+    fullWidth: fullWidth,
+    background: AppColors.white,
+    foreground: AppColors.green,
+    borderColor: SharedTokens.secondaryBorder,
+    radius: 11,
+    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+    textStyle: AppTextStyles.dmSans(size: 12, weight: FontWeight.w700),
+  );
 }
 
 /// Prototype `.danger` (red text, pink border, radius 10, 10px padding).
@@ -127,14 +129,14 @@ class DangerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _AppButton(
-        label: label,
-        onPressed: onPressed,
-        fullWidth: fullWidth,
-        background: AppColors.white,
-        foreground: SharedTokens.dangerInk,
-        borderColor: SharedTokens.dangerBorder,
-        radius: 10,
-        padding: const EdgeInsets.all(10),
-        textStyle: AppTextStyles.dmSans(size: 14),
-      );
+    label: label,
+    onPressed: onPressed,
+    fullWidth: fullWidth,
+    background: AppColors.white,
+    foreground: SharedTokens.dangerInk,
+    borderColor: SharedTokens.dangerBorder,
+    radius: 10,
+    padding: const EdgeInsets.all(10),
+    textStyle: AppTextStyles.dmSans(size: 14),
+  );
 }

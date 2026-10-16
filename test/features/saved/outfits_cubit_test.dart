@@ -49,26 +49,30 @@ void main() {
   });
 
   test('saveOrFind returns existing outfit for identical items', () {
-    final found = cubit.saveOrFind(Outfit(
-      id: 0,
-      name: 'x',
-      occasion: 'x',
-      items: List.of(cubit.byId(1)!.items),
-      why: 'x',
-    ));
+    final found = cubit.saveOrFind(
+      Outfit(
+        id: 0,
+        name: 'x',
+        occasion: 'x',
+        items: List.of(cubit.byId(1)!.items),
+        why: 'x',
+      ),
+    );
     expect(found.id, 1);
     expect(cubit.state.outfits.length, 2);
   });
 
   test('saveOrFind inserts new draft at front with fresh id', () {
-    final saved = cubit.saveOrFind(const Outfit(
-      id: 0,
-      name: 'New',
-      occasion: 'Party',
-      items: ['black-shirt', 'black-jeans'],
-      why: 'why',
-      worn: 4,
-    ));
+    final saved = cubit.saveOrFind(
+      const Outfit(
+        id: 0,
+        name: 'New',
+        occasion: 'Party',
+        items: ['black-shirt', 'black-jeans'],
+        why: 'why',
+        worn: 4,
+      ),
+    );
     expect(saved.id, 1000);
     expect(saved.worn, 0);
     expect(cubit.state.outfits.first.id, 1000);
@@ -77,15 +81,24 @@ void main() {
 
   test('ids created in the same millisecond do not collide', () {
     final a = cubit.upsertManual(
-        name: 'A', items: ['white-tee'], occasion: 'Casual');
+      name: 'A',
+      items: ['white-tee'],
+      occasion: 'Casual',
+    );
     final b = cubit.upsertManual(
-        name: 'B', items: ['black-jeans'], occasion: 'Casual');
+      name: 'B',
+      items: ['black-jeans'],
+      occasion: 'Casual',
+    );
     expect(a.id, isNot(b.id));
   });
 
   test('upsertManual inserts at front with prototype why text', () {
     final o = cubit.upsertManual(
-        name: 'Mine', items: ['white-tee'], occasion: 'Casual');
+      name: 'Mine',
+      items: ['white-tee'],
+      occasion: 'Casual',
+    );
     expect(cubit.state.outfits.first.id, o.id);
     expect(o.why, 'A look you put together from your own wardrobe.');
     expect(o.worn, 0);
@@ -93,10 +106,11 @@ void main() {
 
   test('upsertManual edits existing outfit in place', () {
     final o = cubit.upsertManual(
-        editingId: 2,
-        name: 'Renamed',
-        items: ['white-tee'],
-        occasion: 'Office');
+      editingId: 2,
+      name: 'Renamed',
+      items: ['white-tee'],
+      occasion: 'Office',
+    );
     expect(o.id, 2);
     expect(cubit.state.outfits.length, 2);
     expect(cubit.byId(2)!.name, 'Renamed');

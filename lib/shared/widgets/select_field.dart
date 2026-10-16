@@ -26,11 +26,14 @@ class SelectField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: AppTextStyles.dmSans(size: 11, weight: FontWeight.w700)),
+          Text(
+            label,
+            style: AppTextStyles.dmSans(size: 11, weight: FontWeight.w700),
+          ),
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
+            height: 40,
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(11),
@@ -38,13 +41,14 @@ class SelectField extends StatelessWidget {
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
-                value: options.contains(value) ? value : null,
+                value: value,
                 isExpanded: true,
+                isDense: true,
                 dropdownColor: AppColors.white,
                 borderRadius: BorderRadius.circular(11),
                 style: AppTextStyles.dmSans(size: 12),
                 items: [
-                  for (final o in options)
+                  for (final o in {...options, value})
                     DropdownMenuItem(value: o, child: Text(o)),
                 ],
                 onChanged: (v) {

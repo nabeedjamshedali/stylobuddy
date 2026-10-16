@@ -23,8 +23,10 @@ class SectionTitle extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title,
-              style: AppTextStyles.dmSans(size: 13, weight: FontWeight.w700)),
+          Text(
+            title,
+            style: AppTextStyles.dmSans(size: 13, weight: FontWeight.w700),
+          ),
           if (linkLabel != null)
             GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -32,7 +34,10 @@ class SectionTitle extends StatelessWidget {
               child: Text(
                 '$linkLabel →',
                 style: AppTextStyles.dmSans(
-                    size: 10, weight: FontWeight.w700, color: AppColors.green),
+                  size: 10,
+                  weight: FontWeight.w700,
+                  color: AppColors.green,
+                ),
               ),
             ),
         ],

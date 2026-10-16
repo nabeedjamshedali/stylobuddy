@@ -11,26 +11,42 @@ class LookBoard extends StatelessWidget {
     super.key,
     required this.ids,
     this.size = LookBoardSize.normal,
+    this.columns,
+    this.minHeight,
+    this.imageHeight,
+    this.padding,
   });
 
   final List<String> ids;
   final LookBoardSize size;
 
-  int get _columns => size == LookBoardSize.third ? 3 : 2;
+  /// Optional overrides of the [size] defaults, for context-specific CSS such
+  /// as `.outfit-card .look-board.third` (2 cols, 205, image 130).
+  final int? columns;
+  final double? minHeight;
+  final double? imageHeight;
+  final EdgeInsets? padding;
 
-  double get _imageHeight => switch (size) {
+  int get _columns => columns ?? (size == LookBoardSize.third ? 3 : 2);
+
+  double get _imageHeight =>
+      imageHeight ??
+      switch (size) {
         LookBoardSize.normal => 101,
         LookBoardSize.large => 132,
         LookBoardSize.third => 124,
       };
 
-  double get _minHeight => switch (size) {
+  double get _minHeight =>
+      minHeight ??
+      switch (size) {
         LookBoardSize.normal => 205,
         LookBoardSize.large => 285,
         LookBoardSize.third => 165,
       };
 
-  double get _padding => size == LookBoardSize.third ? 7 : 14;
+  EdgeInsets get _padding =>
+      padding ?? EdgeInsets.all(size == LookBoardSize.third ? 7 : 14);
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +69,7 @@ class LookBoard extends StatelessWidget {
     return Container(
       width: double.infinity,
       constraints: BoxConstraints(minHeight: _minHeight),
-      padding: EdgeInsets.all(_padding),
+      padding: _padding,
       decoration: BoxDecoration(
         color: AppColors.productBg,
         borderRadius: BorderRadius.circular(10),

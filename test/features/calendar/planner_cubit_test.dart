@@ -33,7 +33,9 @@ void main() {
 
   test('plan and remove', () {
     cubit.plan(
-        '2026-10-20', const PlannedEntry(outfitId: 2, occasion: 'Casual'));
+      '2026-10-20',
+      const PlannedEntry(outfitId: 2, occasion: 'Casual'),
+    );
     expect(cubit.state.planned['2026-10-20']!.outfitId, 2);
     cubit.remove('2026-10-20');
     expect(cubit.state.planned.containsKey('2026-10-20'), isFalse);

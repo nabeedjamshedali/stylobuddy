@@ -18,14 +18,14 @@ class GarmentImage extends StatelessWidget {
     return Image.asset(
       path,
       fit: fit,
-      errorBuilder: (_, _, _) => _svg('assets/garments/$id.svg'),
+      errorBuilder: (_, _, _) => _svg(AppAssets.garmentSvgPath(id)),
     );
   }
 
   Widget _svg(String path) => SvgPicture.asset(
-        path,
-        fit: fit,
-        placeholderBuilder: (_) => const SizedBox.shrink(),
-        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-      );
+    path,
+    fit: fit,
+    placeholderBuilder: (_) => const SizedBox.shrink(),
+    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+  );
 }

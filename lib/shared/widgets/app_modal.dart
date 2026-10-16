@@ -26,26 +26,39 @@ abstract final class AppModal {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Material(
-                    color: SharedTokens.modalClose,
-                    borderRadius: BorderRadius.circular(9),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(9),
-                      onTap: () => close(dialogContext),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        child: Text('✕', style: AppTextStyles.dmSans(size: 14)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: AppTextStyles.dmSans(
+                          size: 16,
+                          weight: FontWeight.w700,
+                          letterSpacing: -.8,
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                Text(
-                  title,
-                  style: AppTextStyles.dmSans(
-                      size: 16, weight: FontWeight.w700, letterSpacing: -.8),
+                    const SizedBox(width: 8),
+                    Material(
+                      color: SharedTokens.modalClose,
+                      borderRadius: BorderRadius.circular(9),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(9),
+                        onTap: () => close(dialogContext),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            '✕',
+                            style: AppTextStyles.dmSans(size: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 13),
                 body,

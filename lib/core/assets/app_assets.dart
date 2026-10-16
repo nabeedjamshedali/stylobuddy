@@ -24,9 +24,11 @@ abstract final class AppAssets {
 
   static const appIcon = 'assets/branding/stylobuddy-icon-512.png';
 
+  static String garmentSvgPath(String id) => 'assets/garments/$id.svg';
+
   static String garmentPath(String id) => localFashionIds.contains(id)
       ? 'assets/fashion/$id.webp'
-      : 'assets/garments/$id.svg';
+      : garmentSvgPath(id);
 
   static bool isSvg(String path) => path.endsWith('.svg');
 

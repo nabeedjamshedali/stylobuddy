@@ -9,8 +9,8 @@ import 'outfits_state.dart';
 
 class OutfitsCubit extends Cubit<OutfitsState> {
   OutfitsCubit(this._wardrobe, {int Function()? clock})
-      : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
-        super(OutfitsState(outfits: SeedData.outfits));
+    : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
+      super(OutfitsState(outfits: SeedData.outfits));
 
   final WardrobeCubit _wardrobe;
   final int Function() _clock;
@@ -65,9 +65,13 @@ class OutfitsCubit extends Cubit<OutfitsState> {
           items: List<String>.of(items),
           occasion: occasion,
         );
-        emit(state.copyWith(outfits: [
-          for (final o in state.outfits) o.id == editingId ? updated : o,
-        ]));
+        emit(
+          state.copyWith(
+            outfits: [
+              for (final o in state.outfits) o.id == editingId ? updated : o,
+            ],
+          ),
+        );
         return updated;
       }
     }
@@ -82,9 +86,9 @@ class OutfitsCubit extends Cubit<OutfitsState> {
     return created;
   }
 
-  void delete(int id) => emit(state.copyWith(
-        outfits: state.outfits.where((o) => o.id != id).toList(),
-      ));
+  void delete(int id) => emit(
+    state.copyWith(outfits: state.outfits.where((o) => o.id != id).toList()),
+  );
 
   void logWear(int outfitId) {
     final outfit = byId(outfitId);
@@ -97,13 +101,15 @@ class OutfitsCubit extends Cubit<OutfitsState> {
       items: List<String>.of(outfit.items),
       timestamp: DateTime.fromMillisecondsSinceEpoch(_clock()),
     );
-    emit(state.copyWith(
-      outfits: [
-        for (final o in state.outfits)
-          o.id == outfitId ? o.copyWith(worn: o.worn + 1) : o,
-      ],
-      wearLog: [event, ...state.wearLog],
-    ));
+    emit(
+      state.copyWith(
+        outfits: [
+          for (final o in state.outfits)
+            o.id == outfitId ? o.copyWith(worn: o.worn + 1) : o,
+        ],
+        wearLog: [event, ...state.wearLog],
+      ),
+    );
     _wardrobe.adjustWears(outfit.items, 1);
   }
 
@@ -114,27 +120,30 @@ class OutfitsCubit extends Cubit<OutfitsState> {
     }
     if (event == null) return;
     final outfitId = event.outfitId;
-    emit(state.copyWith(
-      outfits: [
-        for (final o in state.outfits)
-          o.id == outfitId
-              ? o.copyWith(worn: o.worn > 0 ? o.worn - 1 : 0)
-              : o,
-      ],
-      wearLog: state.wearLog.where((e) => e.id != eventId).toList(),
-    ));
+    emit(
+      state.copyWith(
+        outfits: [
+          for (final o in state.outfits)
+            o.id == outfitId
+                ? o.copyWith(worn: o.worn > 0 ? o.worn - 1 : 0)
+                : o,
+        ],
+        wearLog: state.wearLog.where((e) => e.id != eventId).toList(),
+      ),
+    );
     _wardrobe.adjustWears(event.items, -1);
   }
 
   /// Newest first, optionally filtered to one outfit.
   List<WearEvent> wearEvents({int? outfitId}) {
-    final list = [
-      for (final e in state.wearLog)
-        if (outfitId == null || e.outfitId == outfitId) e,
-    ]..sort((a, b) {
-        final c = b.timestamp.compareTo(a.timestamp);
-        return c != 0 ? c : b.id.compareTo(a.id);
-      });
+    final list =
+        [
+          for (final e in state.wearLog)
+            if (outfitId == null || e.outfitId == outfitId) e,
+        ]..sort((a, b) {
+          final c = b.timestamp.compareTo(a.timestamp);
+          return c != 0 ? c : b.id.compareTo(a.id);
+        });
     return list;
   }
 }
