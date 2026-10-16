@@ -3,23 +3,50 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/models/clothing_item.dart';
 import '../../../shared/widgets/garment_image.dart';
 import '../../wardrobe/cubit/wardrobe_cubit.dart';
 import '../matching_tokens.dart';
 
-/// Prototype `.mm-items` on match-select: 2-column grid of candidate tiles,
-/// each marked '+' or '✓' and captioned `category · color`.
-class MmSelectGrid extends StatelessWidget {
-  const MmSelectGrid({
+/// Which prototype grid this tile set represents: match-select's candidate
+/// picker ('.mm-items' with +/✓ marks) or match-review's lock picker
+/// ('.mm-items' with ◆/◇ marks).
+enum MmGridMode { select, lock }
+
+/// Shared `.mm-items` 2-column grid used by match-select and match-review:
+/// each tile shows a badge glyph and a caption that depend on [mode] and
+/// whether the tile's id is in [marked].
+class MmItemsGrid extends StatelessWidget {
+  const MmItemsGrid({
     super.key,
+    required this.mode,
     required this.ids,
-    required this.selected,
+    required this.marked,
     required this.onTap,
   });
 
+  final MmGridMode mode;
   final List<String> ids;
-  final Set<String> selected;
+  final Set<String> marked;
   final ValueChanged<String> onTap;
+
+  String _glyph(bool on) {
+    switch (mode) {
+      case MmGridMode.select:
+        return on ? '✓' : '+';
+      case MmGridMode.lock:
+        return on ? '◆' : '◇';
+    }
+  }
+
+  String _caption(bool on, ClothingItem item) {
+    switch (mode) {
+      case MmGridMode.select:
+        return '${item.category} · ${item.color}';
+      case MmGridMode.lock:
+        return on ? 'Required in every look' : 'Flexible candidate';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +65,7 @@ class MmSelectGrid extends StatelessWidget {
       itemBuilder: (context, i) {
         final id = ids[i];
         final item = wardrobe.itemOrFallback(id);
-        final on = selected.contains(id);
+        final on = marked.contains(id);
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => onTap(id),
@@ -87,7 +114,7 @@ class MmSelectGrid extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              on ? '✓' : '+',
+                              _glyph(on),
                               style: AppTextStyles.dmSans(
                                 size: 13,
                                 color: on ? AppColors.white : MatchingTokens.markOn,
@@ -115,7 +142,7 @@ class MmSelectGrid extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
-                    '${item.category} · ${item.color}',
+                    _caption(on, item),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.dmSans(

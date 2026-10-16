@@ -10,7 +10,7 @@ import '../../stylist/cubit/stylist_state.dart';
 import '../../wardrobe/cubit/wardrobe_cubit.dart';
 import '../widgets/matching_page.dart';
 import '../widgets/mm_chip.dart';
-import '../widgets/mm_select_grid.dart';
+import '../widgets/mm_items_grid.dart';
 import '../widgets/mm_selection.dart';
 import '../widgets/mm_step_heading.dart';
 
@@ -77,9 +77,10 @@ class MatchSelectView extends StatelessWidget {
                 ),
               ),
             ),
-            MmSelectGrid(
+            MmItemsGrid(
+              mode: MmGridMode.select,
               ids: ids,
-              selected: state.selected.toSet(),
+              marked: state.selected.toSet(),
               onTap: cubit.toggleSelect,
             ),
             PrimaryButton(

@@ -9,7 +9,7 @@ import '../../../shared/widgets/screen_head.dart';
 import '../../stylist/cubit/stylist_cubit.dart';
 import '../../stylist/cubit/stylist_state.dart';
 import '../widgets/matching_page.dart';
-import '../widgets/mm_lock_grid.dart';
+import '../widgets/mm_items_grid.dart';
 import '../widgets/mm_notes.dart';
 import '../widgets/mm_step_heading.dart';
 
@@ -52,7 +52,12 @@ class MatchReviewView extends StatelessWidget {
               ],
             ),
             const MmLockLegend(),
-            MmLockGrid(ids: selected, locked: locked, onTap: cubit.toggleLock),
+            MmItemsGrid(
+              mode: MmGridMode.lock,
+              ids: selected,
+              marked: locked,
+              onTap: cubit.toggleLock,
+            ),
             if (!hasSelection)
               const MmWarningNotice(
                 'Choose at least one item before continuing.',
