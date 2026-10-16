@@ -25,14 +25,24 @@ class AppShell extends StatelessWidget {
     final location = GoRouterState.of(context).uri.toString();
     final current = AppRoutes.tabFor(location);
     final path = Uri.parse(location).path;
-    // Android back is intercepted only on a tab root other than /home (-> go
-    // home). /home exits the app; drill-down screens (pushed) pop normally.
+    // Android back is intercepted whenever we're not on /home and the inner
+    // Navigator has nothing left to pop. That covers both a tab root (e.g.
+    // /wardrobe, reached by tapping a tab -> go home) and a non-tab-root
+    // screen left as the sole entry in its stack after a flow-reset
+    // `context.go` (e.g. edit_item_view -> /clothing) -> go that path's tab
+    // root instead of letting the app exit. Drill-down screens reached via
+    // `context.push` still have something to pop and are left alone.
     final interceptBack =
-        path != AppRoutes.home && AppRoutes.tabFor(path) == path;
+        path != AppRoutes.home && !Navigator.of(context).canPop();
+    // A tab root (tabFor(path) == path) falls back to /home, same as
+    // before. Any other stranded screen (e.g. left there by a flow-reset
+    // `context.go`) falls back to its own tab root instead.
+    final tabRoot = AppRoutes.tabFor(path);
+    final fallback = tabRoot == path ? AppRoutes.home : tabRoot;
     return PopScope(
       canPop: !interceptBack,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go(AppRoutes.home);
+        if (!didPop) context.go(fallback);
       },
       child: Scaffold(
         backgroundColor: AppColors.white,

@@ -15,7 +15,10 @@ product. Every screen from the HTML/JS prototype
 (`stylobuddy-v23-mobile-icon-final/stylobuddy-prototype/` at the repo
 root — untracked, the user's reference copy, never edit or delete it) has
 been rebuilt as a real Flutter screen, wired to Cubit state management and
-`go_router` navigation, and verified side-by-side against the prototype.
+`go_router` navigation. A representative sample of screens across every
+feature was visually verified side-by-side against the prototype (see
+"Visual parity pass" below) — this was a sample, not an inspection of all
+63 routes.
 **All data is in-memory sample data** (`lib/shared/data/seed_data.dart` +
 Cubits holding state in RAM) — nothing is persisted, there is no real
 authentication, and no backend service has been wired in. Closing the app
@@ -31,9 +34,13 @@ loses all changes.
   insights, F13 profile/settings/premium preview.
 - **State management**: `flutter_bloc` Cubits only (`WardrobeCubit`,
   `OutfitsCubit`, `PlannerCubit`, `ProfileCubit`, `StylistCubit`,
-  `WardrobeBrowseCubit`, `ImportCubit`, `BuilderCubit`, `ShoppingCubit`),
-  all provided at the app root in `lib/app.dart`. Plain state classes with
-  `copyWith`, no Provider/Riverpod/GetX/Freezed.
+  `WardrobeBrowseCubit`, `ImportCubit`, `BuilderCubit`, `ShoppingCubit`,
+  `PackingCubit`), provided at the app root in `lib/app.dart` — not *all*
+  Cubits are root-provided: `AuthCubit`, `OnboardingCubit` and
+  `SavedViewCubit` are intentionally route-scoped feature-local Cubits
+  (they hold per-flow UI state, not durable user data, so recreating them
+  on re-entry is correct). Plain state classes with `copyWith`, no
+  Provider/Riverpod/GetX/Freezed.
 - **Navigation**: `go_router`, hash-based on web (`/#/<route>`), one path
   per prototype route (`lib/core/router/app_routes.dart` — 63 route
   constants, matching the prototype's `pages.*` keys). Bottom-nav tabs use
@@ -45,10 +52,16 @@ loses all changes.
   `.clearEditing()`, the same draft-scheduling API F08 (saved looks) and
   F09 (calendar) use, instead of calling `plan()`/`select()` in isolation
   (`lib/features/stylist/view/result_detail_view.dart`).
-- **Tests**: 388 tests, full suite green (`flutter test`). `flutter
-  analyze` reports "No issues found!". Every feature document's assertions
+- **Tests**: full suite green (`flutter test`). `flutter
+  analyze` reports "No issues found!". Most feature document assertions
   (`docs/features/F01..F13-*.md`) have a covering test named after its
-  assertion ID (`F03_A28`, etc.).
+  assertion ID (`F03_A28`, etc.) — the exceptions are F01's 44 assertions
+  written before that ID convention existed (no per-ID test names, though
+  the behavior they describe is covered by other tests under
+  `test/core`, `test/shared` and `test/features/*`), and every `[L]`
+  live-run assertion across all 13 features (12 total), which has no test
+  by design — it's verified by actually running the app, not by
+  automated tests.
 - **Visual parity pass**: screenshots of all ~63 routes captured for both
   the HTML prototype (served on :8801) and this Flutter web build (served
   on :8802) at 390x844 via `scripts/parity/shoot.js` (Playwright). A

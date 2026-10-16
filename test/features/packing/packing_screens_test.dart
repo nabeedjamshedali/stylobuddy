@@ -41,9 +41,7 @@ void main() {
     }
   });
 
-  testWidgets('F10_A02 trip count label pluralizes correctly', (
-    tester,
-  ) async {
+  testWidgets('F10_A02 trip count label pluralizes correctly', (tester) async {
     await pumpApp(tester, AppRoutes.packing);
     expect(find.text('0 trips'), findsOneWidget);
 
@@ -197,9 +195,8 @@ void main() {
       expect(find.text('✧'), findsWidgets);
 
       // Toggle 3 of 11.
-      for (final key in cubit.state.selectedTrip!.items
-          .take(3)
-          .map((i) => i.key)) {
+      for (final key
+          in cubit.state.selectedTrip!.items.take(3).map((i) => i.key)) {
         cubit.toggle(key);
       }
       await tester.pumpAndSettle();
@@ -209,10 +206,7 @@ void main() {
       // Running generate again does not duplicate or reset.
       cubit.generateChecklist(wardrobeCubitOf(tester).state.items);
       expect(cubit.state.selectedTrip!.items.length, 11);
-      expect(
-        cubit.state.selectedTrip!.items.where((i) => i.packed).length,
-        3,
-      );
+      expect(cubit.state.selectedTrip!.items.where((i) => i.packed).length, 3);
 
       // Remove every item -> zero-item empty state.
       for (final key in [
@@ -416,9 +410,7 @@ void main() {
     }
   });
 
-  testWidgets('F10_A23 packing-preview with no trip selected', (
-    tester,
-  ) async {
+  testWidgets('F10_A23 packing-preview with no trip selected', (tester) async {
     await pumpApp(tester, AppRoutes.packingPreview);
     expect(find.text('No trip selected.'), findsOneWidget);
   });
@@ -430,33 +422,32 @@ void main() {
     expect(find.text('Choose a trip first.'), findsOneWidget);
   });
 
-  testWidgets(
-    'F10_A24 packing-list with a trip shows the checklist toolbar',
-    (tester) async {
-      final router = await pumpApp(tester, AppRoutes.packing);
-      final cubit = packingCubitOf(tester);
-      cubit.newTrip();
-      cubit.saveDraft(
-        name: 'Trip name here',
-        destination: '',
-        start: '2026-11-01',
-        end: '2026-11-02',
-        type: 'Vacation',
-        notes: '',
-      );
-      await goTo(tester, router, AppRoutes.packingList);
-      for (final t in [
-        'TRIP CHECKLIST',
-        'Trip name here',
-        '✎ Edit trip',
-        '＋ Add items',
-        '＋ Add clothing or essentials',
-        'Delete trip',
-      ]) {
-        expect(find.text(t), findsWidgets, reason: t);
-      }
-    },
-  );
+  testWidgets('F10_A24 packing-list with a trip shows the checklist toolbar', (
+    tester,
+  ) async {
+    final router = await pumpApp(tester, AppRoutes.packing);
+    final cubit = packingCubitOf(tester);
+    cubit.newTrip();
+    cubit.saveDraft(
+      name: 'Trip name here',
+      destination: '',
+      start: '2026-11-01',
+      end: '2026-11-02',
+      type: 'Vacation',
+      notes: '',
+    );
+    await goTo(tester, router, AppRoutes.packingList);
+    for (final t in [
+      'TRIP CHECKLIST',
+      'Trip name here',
+      '✎ Edit trip',
+      '＋ Add items',
+      '＋ Add clothing or essentials',
+      'Delete trip',
+    ]) {
+      expect(find.text(t), findsWidgets, reason: t);
+    }
+  });
 
   testWidgets(
     'F10_A25 a trip item whose wardrobe item was removed still renders',
@@ -506,6 +497,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(pathOf(router), AppRoutes.packing); // no trip: packing-add's head
   });
+
+  testWidgets(
+    'PackingCubit is root-provided: trips survive navigating away from '
+    'and back to the packing flow (regression for ADR-002)',
+    (tester) async {
+      final router = await pumpApp(tester, AppRoutes.packing);
+      final cubit = packingCubitOf(tester);
+      cubit.newTrip();
+      cubit.saveDraft(
+        name: 'Surviving trip',
+        destination: 'Lisbon',
+        start: '2026-11-01',
+        end: '2026-11-02',
+        type: 'Vacation',
+        notes: '',
+      );
+      expect(cubit.state.trips, hasLength(1));
+
+      // Leave the packing flow entirely (a different bottom-nav tab), then
+      // come back. With the old feature-local ShellRoute, PackingCubit was
+      // disposed and recreated empty on this round trip.
+      await goTo(tester, router, AppRoutes.home);
+      await goTo(tester, router, AppRoutes.packing);
+
+      expect(find.text('1 trip'), findsOneWidget);
+      final cubitAfter = packingCubitOf(tester);
+      expect(identical(cubitAfter, cubit), isTrue);
+      expect(cubitAfter.state.trips, hasLength(1));
+      expect(cubitAfter.state.trips.single.name, 'Surviving trip');
+    },
+  );
 
   testWidgets(
     'F10_A26 with a trip selected, packing-preview and new-trip (edit) '

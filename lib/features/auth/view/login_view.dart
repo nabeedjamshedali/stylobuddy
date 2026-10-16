@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
@@ -44,7 +45,7 @@ class _LoginViewState extends State<LoginView> {
       password: _password.text,
     );
     if (result == AuthResult.success) {
-      AppToast.show(context, 'Signed in to demo account');
+      AppToast.show(context, DemoCopy.loginSuccessToast);
       context.go(AppRoutes.home);
     }
   }

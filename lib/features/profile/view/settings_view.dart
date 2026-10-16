@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/screen_head.dart';
 import '../profile_tokens.dart';
 import '../widgets/pf_card.dart';
@@ -61,7 +62,7 @@ class SettingsView extends StatelessWidget {
               PfMenuRow(
                 symbol: '↪',
                 title: 'Sign out',
-                subtitle: 'Leave the current demo session',
+                subtitle: DemoCopy.settingsSignOutSubtitle,
                 onTap: () => context.push(AppRoutes.signout),
               ),
             ],
@@ -71,7 +72,10 @@ class SettingsView extends StatelessWidget {
             child: Text(
               'StyloBuddy · Interface prototype V19',
               textAlign: TextAlign.center,
-              style: AppTextStyles.dmSans(size: 10, color: ProfileTokens.version),
+              style: AppTextStyles.dmSans(
+                size: 10,
+                color: ProfileTokens.version,
+              ),
             ),
           ),
         ],

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
 import '../widgets/auth_notice.dart';
@@ -19,7 +20,7 @@ class ResetSentView extends StatelessWidget {
     return AuthPage(
       backRoute: AppRoutes.forgot,
       title: 'Check your inbox.',
-      subtitle: 'Your password-reset instructions are ready in this demo flow.',
+      subtitle: DemoCopy.resetSentSubtitle,
       children: [
         const AuthSuccessMark(mark: AuthMark.mail),
         BlocBuilder<AuthCubit, AuthState>(
@@ -27,7 +28,7 @@ class ResetSentView extends StatelessWidget {
             title: 'Reset link preview',
             before: 'In the real app, a secure link would be sent to ',
             email: state.email,
-            after: '. No email has been sent by this prototype.',
+            after: DemoCopy.resetSentNoticeAfter,
           ),
         ),
         AuthSubmitButton(

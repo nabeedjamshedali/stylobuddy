@@ -1,6 +1,33 @@
 # ADR-002 — PackingCubit scoped to a nested ShellRoute
 
-**Date:** 2026-10-17 · **Status:** Accepted · **Affects:** F10
+**Date:** 2026-10-17 · **Status:** Superseded (2026-10-17, same day — see
+below) · **Affects:** F10
+
+## Superseded
+
+The final whole-branch review flagged a data-loss bug: because
+`PackingCubit` held real user data (trips) but was provided by a
+feature-local `ShellRoute`, navigating away from `/packing*` to any other
+tab and back disposed and recreated the cubit, silently discarding every
+trip the user had created. That's a direct violation of this project's
+own rule that durable user data lives in a root-provided Cubit (the
+contrasting example cited at the time, `ShoppingCubit`'s wishlist, was
+always root-provided and does not lose data this way).
+
+`PackingCubit` is now provided in the root `MultiBlocProvider`
+(`lib/app.dart`), the same as `ShoppingCubit`/`StylistCubit`/
+`BuilderCubit`. `packing_routes.dart` no longer wraps its `GoRoute`s in a
+`ShellRoute`; they are plain `GoRoute`s, and the cubit comes from the root
+provider. The "trips reset to empty when the flow is re-entered" behavior
+this ADR deliberately chose is gone — trips now persist for the lifetime
+of the app session, matching F10 §3's "no persistence yet" scope (no
+persistence yet means no Firestore-backed persistence across app
+restarts; it was never meant to mean "loses data on a tab switch").
+
+The rest of this document is kept for history — it explains why the
+original (now-wrong) choice was made.
+
+## Original decision (superseded)
 
 ## Context
 

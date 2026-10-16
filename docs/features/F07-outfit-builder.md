@@ -2,7 +2,7 @@
 
 > Pick wardrobe pieces with a live preview, then name, classify and save the outfit (create or edit). Plan Task 9; prototype `app.js:158-169`. Depends on foundation 03, 04.
 
-**Status:** IN PROGRESS · **Milestone:** 1 · **Depends on:** F01
+**Status:** DONE (gates 1-3; gate 4 open) · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -94,7 +94,7 @@ None.
 ## Completion block
 
 ```
-Status: IN PROGRESS
+Status: DONE (gates 1-3; gate 4 open)
 
 [x] Gate 1  Interface documented
 [x] Gate 2  Unit

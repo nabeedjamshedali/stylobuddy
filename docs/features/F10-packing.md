@@ -2,7 +2,7 @@
 
 > Create trips, get a suggested packing list from the owned wardrobe, check items off, add wardrobe pieces or custom essentials, and delete trips. Plan Task 12; prototype `app.js:199-219`. Depends on foundation 03, 04.
 
-**Status:** IN PROGRESS · **Milestone:** 1 · **Depends on:** F01
+**Status:** DONE (gates 1-3; gate 4 open) · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -102,7 +102,7 @@ None.
 ## Completion block
 
 ```
-Status: IN PROGRESS
+Status: DONE (gates 1-3; gate 4 open)
 
 [x] Gate 1  Interface documented
 [x] Gate 2  Unit

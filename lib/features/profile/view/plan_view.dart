@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_buttons.dart';
 import '../../../shared/widgets/screen_head.dart';
 import '../cubit/profile_cubit.dart';
@@ -29,9 +30,7 @@ class PlanView extends StatelessWidget {
           ),
           const PfFormIntro(
             title: 'Choose your rhythm.',
-            body:
-                'These are illustrative plan periods; prices have not '
-                'been approved.',
+            body: DemoCopy.planIntroBody,
           ),
           IntrinsicHeight(
             child: Row(
@@ -57,12 +56,9 @@ class PlanView extends StatelessWidget {
               ],
             ),
           ),
-          const PfWarningBox(
-            'No purchase is available in this prototype. Final plans depend '
-            'on AI operating costs.',
-          ),
+          const PfWarningBox(DemoCopy.planWarning),
           PrimaryButton(
-            label: 'Continue · Preview only',
+            label: DemoCopy.planContinueLabel,
             onPressed: () => context.push(AppRoutes.purchase),
           ),
         ],

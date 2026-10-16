@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_buttons.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/screen_head.dart';
@@ -35,14 +36,16 @@ class WeatherSettingsView extends StatelessWidget {
           ),
           const PfFormIntro(
             title: 'Dress for your day.',
-            body: 'Use optional weather context to make outfit ideas more '
+            body:
+                'Use optional weather context to make outfit ideas more '
                 'practical.',
           ),
           PfCard(
             children: [
               PfToggleRow(
                 label: 'Use local weather',
-                description: 'Only when permission and a forecast are available',
+                description:
+                    'Only when permission and a forecast are available',
                 value: state.weatherConsent,
                 onChanged: cubit.setWeatherConsent,
               ),
@@ -54,9 +57,7 @@ class WeatherSettingsView extends StatelessWidget {
             isSelected: (o) => state.climate == o,
             onTap: cubit.setClimate,
           ),
-          const PfHelperText(
-            'No location data is accessed by this offline prototype.',
-          ),
+          const PfHelperText(DemoCopy.weatherHelper),
           PrimaryButton(
             label: 'Save settings',
             onPressed: () {

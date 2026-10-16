@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/screen_head.dart';
 import '../../../shared/widgets/app_buttons.dart';
@@ -49,7 +50,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     }
     context.read<ProfileCubit>().updateDetails(name, email);
     context.go(AppRoutes.profile);
-    AppToast.show(context, 'Profile updated in demo');
+    AppToast.show(context, DemoCopy.editProfileSavedToast);
   }
 
   @override
@@ -74,9 +75,7 @@ class _EditProfileViewState extends State<EditProfileView> {
             controller: _email,
             keyboardType: TextInputType.emailAddress,
           ),
-          const PfHelperText(
-            'Changes here are saved only in this demo session.',
-          ),
+          const PfHelperText(DemoCopy.editProfileHelper),
           PrimaryButton(label: 'Save changes', onPressed: _save),
         ],
       ),

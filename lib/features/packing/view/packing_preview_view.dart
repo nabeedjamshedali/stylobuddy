@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/screen_head.dart';
 import '../../wardrobe/cubit/wardrobe_cubit.dart';
 import '../cubit/packing_cubit.dart';
@@ -60,8 +61,8 @@ class PackingPreviewView extends StatelessWidget {
                 title: 'A thoughtful starting point.',
                 subtitle:
                     'Based on your owned wardrobe and ${trip.days}-day '
-                    '${trip.type.toLowerCase()} trip. Suggestions are a '
-                    'demo, not live AI.',
+                    '${trip.type.toLowerCase()} trip.'
+                    '${DemoCopy.packingPreviewDemoClause}',
               ),
               const SizedBox(height: 15),
               PkInfoCard(

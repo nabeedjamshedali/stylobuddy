@@ -2,7 +2,7 @@
 
 > Wardrobe-gap suggestions drawn from a fixed five-item catalog, a wishlist, and a suggestion detail that links back to adding a purchase to the wardrobe. Plan Task 13 (shopping part, 13a); prototype `app.js:220-267`. Depends on foundation 03, 04.
 
-**Status:** IN PROGRESS · **Milestone:** 1 · **Depends on:** F01
+**Status:** DONE (gates 1-3; gate 4 open) · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -90,7 +90,7 @@ None.
 ## Completion block
 
 ```
-Status: IN PROGRESS
+Status: DONE (gates 1-3; gate 4 open)
 
 [x] Gate 1  Interface documented
 [x] Gate 2  Unit

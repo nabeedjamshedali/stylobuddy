@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/auth_state.dart';
@@ -28,14 +29,14 @@ class VerifyEmailView extends StatelessWidget {
             title: 'Verification preview',
             before: 'In production, we’ll send a verification email to ',
             email: state.email,
-            after: '. This is an interactive design preview only.',
+            after: DemoCopy.verifyEmailNoticeAfter,
           ),
         ),
         AuthSubmitButton(
-          label: 'Continue to demo',
+          label: DemoCopy.verifyEmailContinueLabel,
           topMargin: 6,
           onPressed: () {
-            AppToast.show(context, 'Verification simulated');
+            AppToast.show(context, DemoCopy.verifyEmailToast);
             context.go(AppRoutes.home);
           },
         ),
@@ -44,10 +45,8 @@ class VerifyEmailView extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8),
             child: AuthTextLink(
               label: 'Resend verification email',
-              onTap: () => AppToast.show(
-                context,
-                'No real email is sent in this prototype',
-              ),
+              onTap: () =>
+                  AppToast.show(context, DemoCopy.verifyEmailResendToast),
             ),
           ),
         ),

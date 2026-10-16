@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/demo_copy.dart';
 import '../shopping_tokens.dart';
 
 /// Prototype `.sh-phase`: PHASE 1 (available) / PHASE 2 (planned) blocks.
@@ -35,7 +36,7 @@ class ShPhaseCard extends StatelessWidget {
           _title('Explore real products'),
           _body(
             'Store availability, product links and prices will be added '
-            'later. No live products are shown here.',
+            'later. ${DemoCopy.shPhaseNoLiveProducts}',
           ),
         ],
       ),

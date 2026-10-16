@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_buttons.dart';
 import '../../../shared/widgets/app_modal.dart';
 import '../../../shared/widgets/screen_head.dart';
@@ -19,10 +20,7 @@ class DeleteAccountView extends StatelessWidget {
         builder: (dialogContext) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'This demo does not connect to a live user account. No data '
-              'will be deleted.',
-            ),
+            const Text(DemoCopy.deleteAccountModalBody),
             const SizedBox(height: 16),
             SecondaryButton(
               label: 'Close',
@@ -47,14 +45,12 @@ class DeleteAccountView extends StatelessWidget {
           ),
           const PfFormIntro(
             title: 'Your account, your choice.',
-            body: 'In production, deletion will include your account and '
+            body:
+                'In production, deletion will include your account and '
                 'stored wardrobe data, with clear information about active '
                 'subscriptions.',
           ),
-          const PfWarningBox(
-            'This is a visual preview only. No real user account or cloud '
-            'data will be deleted.',
-          ),
+          const PfWarningBox(DemoCopy.deleteAccountWarning),
           DangerButton(
             label: 'Review deletion',
             onPressed: () => _reviewDeletion(context),

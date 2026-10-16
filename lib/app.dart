@@ -6,6 +6,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/builder/cubit/builder_cubit.dart';
 import 'features/calendar/cubit/planner_cubit.dart';
+import 'features/packing/cubit/packing_cubit.dart';
 import 'features/profile/cubit/profile_cubit.dart';
 import 'features/saved/cubit/outfits_cubit.dart';
 import 'features/shopping/cubit/shopping_cubit.dart';
@@ -42,6 +43,7 @@ class StyloBuddyApp extends StatelessWidget {
           create: (context) => BuilderCubit(context.read<OutfitsCubit>()),
         ),
         BlocProvider(create: (_) => ShoppingCubit()),
+        BlocProvider(create: (_) => PackingCubit()),
       ],
       child: MaterialApp.router(
         title: 'StyloBuddy',

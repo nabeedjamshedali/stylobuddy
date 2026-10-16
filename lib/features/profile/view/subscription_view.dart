@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_buttons.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/screen_head.dart';
@@ -25,7 +26,10 @@ class SubscriptionView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ScreenHead(title: 'Subscription', fallbackRoute: AppRoutes.settings),
+          const ScreenHead(
+            title: 'Subscription',
+            fallbackRoute: AppRoutes.settings,
+          ),
           PfCurrentPlanCard(
             plan: plan,
             onExplore: () => context.push(AppRoutes.premium),
@@ -43,16 +47,11 @@ class SubscriptionView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           SecondaryButton(
-            label: 'Restore purchases · Demo',
-            onPressed: () => AppToast.show(
-              context,
-              'No purchases to restore in this demo',
-            ),
+            label: DemoCopy.subscriptionRestoreLabel,
+            onPressed: () =>
+                AppToast.show(context, DemoCopy.subscriptionRestoreToast),
           ),
-          const PfHelperText(
-            "The prototype doesn't communicate with app stores or process "
-            'real purchases.',
-          ),
+          const PfHelperText(DemoCopy.subscriptionHelper),
         ],
       ),
     );

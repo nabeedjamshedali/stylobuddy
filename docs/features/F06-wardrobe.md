@@ -2,7 +2,7 @@
 
 > Browse, search and filter the wardrobe; view, edit and remove an item; and the simulated import flow (source, batch, analyzing, per-item review, confirmation). Plan Task 8; prototype `app.js:63-101`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01, F03
+**Status:** DONE (gates 1-3; gate 4 open) · **Milestone:** 1 · **Depends on:** F01, F03
 
 ---
 
@@ -101,7 +101,7 @@ None.
 ## Completion block
 
 ```
-Status: IN PROGRESS
+Status: DONE (gates 1-3; gate 4 open)
 
 [x] Gate 1  Interface documented
 [x] Gate 2  Unit

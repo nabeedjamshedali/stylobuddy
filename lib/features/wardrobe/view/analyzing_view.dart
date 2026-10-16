@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../../../shared/widgets/progress_bar.dart';
 import '../../../shared/widgets/screen_head.dart';
@@ -41,7 +42,8 @@ class _AnalyzingViewState extends State<AnalyzingView> {
           ),
           LoadingView(
             title: 'Preparing your pieces',
-            message: 'Removing backgrounds and identifying clothing '
+            message:
+                'Removing backgrounds and identifying clothing '
                 'details...',
           ),
           const SizedBox(height: 8),
@@ -49,7 +51,7 @@ class _AnalyzingViewState extends State<AnalyzingView> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'DEMO ANALYSIS',
+              DemoCopy.analyzingCaption,
               style: AppTextStyles.dmSans(
                 size: 9,
                 letterSpacing: 1.5,

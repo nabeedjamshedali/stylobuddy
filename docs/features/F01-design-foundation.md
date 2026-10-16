@@ -2,7 +2,7 @@
 
 > Prototype design tokens, bundled fonts and assets, shared models and seed data, the four root Cubits (wardrobe, outfits, planner, profile), shared widgets, the router and the app shell. Plan Tasks 1–3, already built and reviewed. Depends on foundation 02, 03, 04.
 
-**Status:** IN PROGRESS (Gates 1–3 done and reviewed; Gate 4 live run outstanding — see completion block) · **Milestone:** 1 · **Depends on:** —
+**Status:** DONE (gates 1-3; gate 4 open — see completion block) · **Milestone:** 1 · **Depends on:** —
 
 ---
 
@@ -125,7 +125,7 @@ None.
 ## Completion block
 
 ```
-Status: IN PROGRESS
+Status: DONE (gates 1-3; gate 4 open)
 
 [x] Gate 1  Interface documented
 [x] Gate 2  Unit          (tests under test/core, test/shared, test/features/{wardrobe,saved,calendar,profile})

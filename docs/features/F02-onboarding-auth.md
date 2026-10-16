@@ -2,7 +2,7 @@
 
 > The welcome screen, five-slide intro, personalization, auth chooser and the demo email auth screens (login, signup, forgot, reset-sent, verify-email). Plan Task 4; prototype `app.js:288-323`. Depends on foundation 03, 04, 07.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** DONE (gates 1-3; gate 4 open) · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -104,7 +104,7 @@ None. Resolved 2026-10-16: signup does not write `ProfileCubit` (matches the pro
 ## Completion block
 
 ```
-Status: IMPLEMENTED (gate 4 open)
+Status: DONE (gates 1-3; gate 4 open)
 
 [x] Gate 1  Interface documented
 [x] Gate 2  Unit

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../shared/demo_copy.dart';
 import '../../../shared/widgets/app_buttons.dart';
 import '../../../shared/widgets/screen_head.dart';
 import '../widgets/pf_empty_state.dart';
@@ -24,8 +25,7 @@ class SupportDetailView extends StatelessWidget {
           const PfEmptyState(
             icon: 'ⓘ',
             title: 'Coming before launch',
-            body: 'Official support channels, policies and terms are not '
-                'included in this design prototype.',
+            body: DemoCopy.supportDetailBody,
           ),
           SecondaryButton(
             label: 'Back to help',
