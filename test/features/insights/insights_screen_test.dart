@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stylobuddy/core/router/app_routes.dart';
 import 'package:stylobuddy/features/saved/cubit/outfits_cubit.dart';
+import 'package:stylobuddy/features/saved/cubit/saved_view_cubit.dart';
+import 'package:stylobuddy/features/saved/widgets/sl_search_field.dart';
 import 'package:stylobuddy/features/insights/widgets/in_empty_state.dart';
 import 'package:stylobuddy/features/insights/widgets/in_stat_cards.dart';
 import 'package:stylobuddy/features/insights/widgets/in_wear_activity_card.dart';
@@ -174,11 +176,18 @@ void main() {
     },
   );
 
-  testWidgets('F12_A13 "View wear history →" opens /saved', (tester) async {
-    final router = await pumpApp(tester, AppRoutes.insights);
-    await tapText(tester, 'View wear history →');
-    expect(pathOf(router), AppRoutes.saved);
-  });
+  testWidgets(
+    'F12_A13 "View wear history →" opens /saved with History tab active',
+    (tester) async {
+      final router = await pumpApp(tester, AppRoutes.insights);
+      await tapText(tester, 'View wear history →');
+      expect(pathOf(router), AppRoutes.saved);
+      final view = tester
+          .element(find.byType(SlSearchField))
+          .read<SavedViewCubit>();
+      expect(view.state.tab, 'History');
+    },
+  );
 
   testWidgets(
     'F12_A14 most-worn pieces shows 4 rows, navy-chinos first, and opens '

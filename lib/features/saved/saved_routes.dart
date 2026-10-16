@@ -18,7 +18,9 @@ final List<RouteBase> savedRoutes = [
     routes: [
       GoRoute(
         path: AppRoutes.saved,
-        builder: (context, state) => const SavedView(),
+        builder: (context, state) => SavedView(
+          initialTab: state.uri.queryParameters['tab'],
+        ),
       ),
       GoRoute(
         path: AppRoutes.savedDetailPath,

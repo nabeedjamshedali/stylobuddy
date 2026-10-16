@@ -98,7 +98,7 @@ class InsightsView extends StatelessWidget {
             worn: stats.worn,
             count: stats.count,
             unused: unused,
-            onViewHistory: () => context.push(AppRoutes.saved),
+            onViewHistory: () => context.push('${AppRoutes.saved}?tab=History'),
           ),
           InSectionHead(title: 'Most-worn pieces', caption: 'Top items'),
           Column(

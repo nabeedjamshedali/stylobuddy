@@ -20,9 +20,27 @@ import '../widgets/sl_stats.dart';
 import '../widgets/sl_tabs.dart';
 import '../widgets/sl_wear_card.dart';
 
-/// Prototype `pages.saved`.
-class SavedView extends StatelessWidget {
-  const SavedView({super.key});
+/// Prototype `pages.saved`. [initialTab] preselects a tab (e.g. from
+/// Insights' "View wear history" link) without disturbing normal in-shell
+/// navigation, which keeps the tab the user last picked.
+class SavedView extends StatefulWidget {
+  const SavedView({super.key, this.initialTab});
+
+  final String? initialTab;
+
+  @override
+  State<SavedView> createState() => _SavedViewState();
+}
+
+class _SavedViewState extends State<SavedView> {
+  @override
+  void initState() {
+    super.initState();
+    final tab = widget.initialTab;
+    if (tab != null) {
+      context.read<SavedViewCubit>().setTab(tab);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
