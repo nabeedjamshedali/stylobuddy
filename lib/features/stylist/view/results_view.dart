@@ -11,6 +11,7 @@ import '../cubit/stylist_state.dart';
 import '../widgets/link_action.dart';
 import '../widgets/look_card.dart';
 import '../widgets/no_matches.dart';
+import '../stylist_navigation.dart';
 import '../widgets/results_header.dart';
 import '../widgets/stylist_page.dart';
 
@@ -20,16 +21,6 @@ class ResultsView extends StatelessWidget {
   const ResultsView({super.key, this.match = false});
 
   final bool match;
-
-  void _refresh(BuildContext context, StylistCubit cubit) {
-    if (match) {
-      cubit.generateMatches();
-      context.pushReplacement(AppRoutes.matchingProgress);
-    } else {
-      cubit.generateAutomatic();
-      context.pushReplacement(AppRoutes.generating);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +70,7 @@ class ResultsView extends StatelessWidget {
             ),
             LinkAction(
               label: '↻ Refresh combinations',
-              onTap: () => _refresh(context, cubit),
+              onTap: () => refreshStylistResults(context, match: match),
             ),
             const DemoNote(
               'Styling examples are simulated. No real AI evaluation or percentage scores are claimed.',

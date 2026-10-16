@@ -26,6 +26,24 @@ void main() {
   List<List<String>> lookItems() =>
       cubit.state.results.map((r) => r.items).toList();
 
+  test('F03_FIX1 overlapping generate calls do not restart generation', () async {
+    cubit.setOccasion('Everyday');
+    final first = cubit.generateAutomatic();
+    expect(cubit.state.isGenerating, isTrue);
+    // A second call while one is in flight must be a no-op (ignored), not a
+    // second timer/second result swap.
+    cubit.setOccasion('Office');
+    final second = cubit.generateAutomatic();
+    await Future<void>.delayed(StylistCubit.generationDelay);
+    await first;
+    await second;
+    expect(cubit.state.isGenerating, isFalse);
+    expect(cubit.state.results.length, 3);
+    // The occasion on the results reflects the first (accepted) call only,
+    // proving the second call never re-ran `_generate`.
+    expect(cubit.state.results.first.occasion, 'Everyday');
+  });
+
   test('F03_A01 automatic yields three named seed looks', () async {
     await generate(cubit.generateAutomatic);
     expect(cubit.state.results.map((r) => r.name), [

@@ -90,6 +90,7 @@ class StylistCubit extends Cubit<StylistState> {
     List<String> names, {
     required bool match,
   }) async {
+    if (state.isGenerating) return;
     final occasion = state.occasion;
     final base = _clock();
     final results = [

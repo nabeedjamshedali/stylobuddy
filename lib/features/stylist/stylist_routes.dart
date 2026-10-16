@@ -8,6 +8,7 @@ import 'view/results_view.dart';
 import 'view/styling_options_view.dart';
 import 'view/stylist_view.dart';
 
+export 'stylist_navigation.dart' show refreshStylistResults;
 export 'view/generating_view.dart' show GeneratingView;
 export 'view/result_detail_view.dart' show ResultDetailView;
 export 'view/results_view.dart' show ResultsView;

@@ -16,6 +16,7 @@ import '../../wardrobe/cubit/wardrobe_cubit.dart';
 import '../cubit/stylist_cubit.dart';
 import '../models/look_piece.dart';
 import '../models/style_result.dart';
+import '../stylist_navigation.dart';
 import '../widgets/detail_board.dart';
 import '../widgets/detail_heading.dart';
 import '../widgets/detail_modals.dart';
@@ -137,17 +138,6 @@ class ResultDetailView extends StatelessWidget {
     );
   }
 
-  void _refresh(BuildContext context) {
-    final cubit = context.read<StylistCubit>();
-    if (match) {
-      cubit.generateMatches();
-      context.pushReplacement(AppRoutes.matchingProgress);
-    } else {
-      cubit.generateAutomatic();
-      context.pushReplacement(AppRoutes.generating);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = context.watch<StylistCubit>().state;
@@ -189,7 +179,7 @@ class ResultDetailView extends StatelessWidget {
           onSave: () => _save(context, r),
           onPlan: () => _plan(context, r),
           onShare: () => _share(context),
-          onRefresh: () => _refresh(context),
+          onRefresh: () => refreshStylistResults(context, match: match),
         ),
         const DetailFootnote(),
       ],
