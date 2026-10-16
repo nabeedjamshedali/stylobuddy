@@ -2,7 +2,7 @@
 
 > Wardrobe-gap suggestions drawn from a fixed five-item catalog, a wishlist, and a suggestion detail that links back to adding a purchase to the wardrobe. Plan Task 13 (shopping part, 13a); prototype `app.js:220-267`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** IN PROGRESS · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -90,13 +90,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IN PROGRESS
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/17 PASS
-Regression: —
+Assertions: 16/17 PASS (A17 is [L], deferred to the live parity pass)
+Regression: flutter test — 336 passed, 0 failed; flutter analyze — No issues found!
 ```
