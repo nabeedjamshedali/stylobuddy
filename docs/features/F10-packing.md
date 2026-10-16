@@ -2,7 +2,7 @@
 
 > Create trips, get a suggested packing list from the owned wardrobe, check items off, add wardrobe pieces or custom essentials, and delete trips. Plan Task 12; prototype `app.js:199-219`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** IN PROGRESS · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -102,13 +102,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IN PROGRESS
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/27 PASS
-Regression: —
+Assertions: 26/27 PASS (A27 is [L], pending the parity pass)
+Regression: flutter test -> 313/313 passed; flutter analyze -> No issues found!
 ```
