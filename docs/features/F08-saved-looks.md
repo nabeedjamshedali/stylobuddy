@@ -2,7 +2,7 @@
 
 > My Looks (saved outfits and wear history tabs with search), saved outfit detail (mark as worn, plan, edit, share, delete) and wear journal detail. Plan Task 10; prototype `app.js:170-184`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01, F07, F09
+**Status:** IMPLEMENTED · **Milestone:** 1 · **Depends on:** F01, F07, F09
 
 ---
 
@@ -102,13 +102,13 @@ None. Resolved 2026-10-16: scheduling draft is `PlannerCubit.startScheduling` (F
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IMPLEMENTED
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/27 PASS
-Regression: —
+Assertions: 26/27 PASS (F08-A27 is [L], pending the parity pass)
+Regression: flutter test 278/278 passed; flutter analyze: No issues found!
 ```

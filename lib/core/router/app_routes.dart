@@ -72,7 +72,9 @@ abstract final class AppRoutes {
   static String clothing(String id) => '$clothingPath?id=$id';
   static String editItemFor(String id) => '$editItem?id=$id';
   static String savedDetail(int id) => '$savedDetailPath?id=$id';
-  static String wearDetail(int id) => '$wearDetailPath?id=$id';
+  static String wearDetail(int id, {int? outfitId}) => outfitId == null
+      ? '$wearDetailPath?id=$id'
+      : '$wearDetailPath?id=$id&outfitId=$outfitId';
 
   /// Routes rendered without the bottom navigation.
   static const noNavRoutes = {
