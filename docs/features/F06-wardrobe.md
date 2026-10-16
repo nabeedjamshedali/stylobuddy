@@ -101,13 +101,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IN PROGRESS
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/32 PASS
-Regression: —
+Assertions: 31/32 PASS (A32 is [L], pending the parity pass)
+Regression: flutter test -> 207/207 passed; flutter analyze -> No issues found!
 ```

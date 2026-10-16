@@ -70,6 +70,7 @@ abstract final class AppRoutes {
   static const addConfirm = '/add-confirm';
 
   static String clothing(String id) => '$clothingPath?id=$id';
+  static String editItemFor(String id) => '$editItem?id=$id';
   static String savedDetail(int id) => '$savedDetailPath?id=$id';
   static String wearDetail(int id) => '$wearDetailPath?id=$id';
 
