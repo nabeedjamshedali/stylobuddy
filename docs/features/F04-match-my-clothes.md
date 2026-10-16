@@ -2,7 +2,7 @@
 
 > The three-step flow (select candidates, lock must-wear pieces, set preferences) that produces up to three looks containing every locked item, using F03's `StylistCubit` and shared result views. Plan Task 7; prototype `app.js:149-157`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01, F03
+**Status:** IMPLEMENTED (gate 4 pending) · **Milestone:** 1 · **Depends on:** F01, F03
 
 ---
 
@@ -93,13 +93,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IMPLEMENTED (gate 4 pending)
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/23 PASS
-Regression: —
+Assertions: 22/23 PASS (A01-A21, A23; A22 [L] pending parity pass)
+Regression: flutter test 162/162, flutter analyze clean
 ```
