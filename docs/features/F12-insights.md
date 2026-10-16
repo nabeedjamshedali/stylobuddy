@@ -2,7 +2,7 @@
 
 > A read-only wardrobe report: counts, category mix, wear activity, most-worn and underused pieces, occasion labels. Plan Task 13 (insights part, 13b); prototype `app.js:325-344`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** IMPLEMENTED · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -96,13 +96,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IMPLEMENTED
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/21 PASS
-Regression: —
+Assertions: 20/21 PASS (A21 [L] pending the parity pass)
+Regression: flutter test — 361 passed, 0 failed
 ```
