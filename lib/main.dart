@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/splash/view/splash_view.dart';
 
 void main() {
   runApp(const StyloBuddyApp());
 }
 
+/// Temporary shell; Task 3 replaces this with the go_router app.
 class StyloBuddyApp extends StatelessWidget {
   const StyloBuddyApp({super.key});
 
@@ -15,8 +15,8 @@ class StyloBuddyApp extends StatelessWidget {
     return MaterialApp(
       title: 'StyloBuddy',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
-      home: const SplashView(),
+      theme: AppTheme.light,
+      home: const Scaffold(),
     );
   }
 }

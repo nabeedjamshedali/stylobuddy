@@ -1,61 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
 
-/// Typography tokens. The reference design uses a bold, tight, grotesque
-/// sans-serif for headlines (Manrope reads closest to it) — never set
-/// a TextStyle inline in a screen/widget.
-class AppTextStyles {
-  AppTextStyles._();
+/// Typography. DM Sans (body) and Manrope (headings) are bundled variable
+/// fonts declared in pubspec, so nothing is fetched at runtime.
+abstract final class AppTextStyles {
+  static TextStyle _style(
+    String family, {
+    required double size,
+    required FontWeight weight,
+    Color? color,
+    double? height,
+    double? letterSpacing,
+  }) {
+    return TextStyle(
+      fontFamily: family,
+      fontSize: size,
+      fontWeight: weight,
+      fontVariations: [FontVariation('wght', weight.value.toDouble())],
+      color: color ?? AppColors.ink,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
+  }
 
-  static TextStyle get brandWordmark => GoogleFonts.manrope(
-        fontSize: 20,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 4,
-        color: AppColors.textPrimary,
-      );
+  static TextStyle dmSans({
+    double size = 14,
+    FontWeight weight = FontWeight.w400,
+    Color? color,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      _style('DMSans',
+          size: size,
+          weight: weight,
+          color: color,
+          height: height,
+          letterSpacing: letterSpacing);
 
-  static TextStyle get headline => GoogleFonts.manrope(
-        fontSize: 38,
-        height: 1.12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.5,
-        color: AppColors.textPrimary,
-      );
-
-  static TextStyle get headlineAccent => headline.copyWith(
-        color: AppColors.accent,
-      );
-
-  static TextStyle get body => GoogleFonts.manrope(
-        fontSize: 15,
-        height: 1.4,
-        fontWeight: FontWeight.w400,
-        color: AppColors.textSecondary,
-      );
-
-  static TextStyle get cardTitle => GoogleFonts.manrope(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      );
-
-  static TextStyle get cardSubtitle => GoogleFonts.manrope(
-        fontSize: 13,
-        fontWeight: FontWeight.w400,
-        color: AppColors.textMuted,
-      );
-
-  static TextStyle get button => GoogleFonts.manrope(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textPrimary,
-      );
-
-  static TextStyle get caption => GoogleFonts.manrope(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: AppColors.textMuted,
-      );
+  static TextStyle manrope({
+    double size = 14,
+    FontWeight weight = FontWeight.w800,
+    Color? color,
+    double? height,
+    double? letterSpacing,
+  }) =>
+      _style('Manrope',
+          size: size,
+          weight: weight,
+          color: color,
+          height: height,
+          letterSpacing: letterSpacing);
 }
