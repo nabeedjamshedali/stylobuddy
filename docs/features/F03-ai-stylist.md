@@ -2,7 +2,7 @@
 
 > The stylist hub, occasion picker, styling preferences, simulated generation, results and result detail (save, plan, swap, share), plus the shared results engine `StylistCubit` used by F04 and F05. Plan Task 6; prototype `app.js:102-148`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01
+**Status:** DONE (gates 1-3; gate 4 open) · **Milestone:** 1 · **Depends on:** F01
 
 ---
 
@@ -95,6 +95,7 @@ F03-A22  [U]  Generating renders head 'Finding Your Style', 'Putting looks toget
 F03-A23  [U]  Results with 3 results: 'YOUR PERSONAL STYLE EDIT', 'Three looks, made for you', 'Real pieces in your wardrobe, thoughtfully put together for everyday.' (lower-cased occasion), cards 'LOOK 01 / 03', look name, 'Explore this outfit →'; with 1 result the headline is '1 look from your selection', with 0 '0 looks from your selection'
 F03-A24  [U]  Results buttons: 'Change occasion' opens /occasion, '↻ Refresh combinations' regenerates (back to /generating), disclaimer 'Styling examples are simulated. No real AI evaluation or percentage scores are claimed.' renders; tapping a card sets activeIndex and opens /result-detail
 F03-A25  [U]  Result detail renders 'STYLOBUDDY / THE STYLE EDIT', 'LOOK 01 OF 03', look name, 'A complete look, styled from your own wardrobe.', 'Every item is from your wardrobe', 'Why this outfit works', criteria 'Visual harmony' 'Balanced proportions' '<Occasion> ready', 'Your pieces' with '<n> items', and the four actions '♡ Save Outfit' '▦ Plan Outfit' '↗ Share look' '↻ New suggestions'
+> Note 2026-10-16 (implementation): the prototype renders the index padded but the total unpadded, so the shipped copy is 'LOOK 01 OF 3' (app.js resultDetails). Tests assert the prototype copy; the results card keeps 'LOOK 01 / 03'.
 F03-A26  [U]  Result detail with no results renders the stylist hub ('Your personal' 'style studio.') instead of crashing (missing vs empty)
 F03-A27  [U]  Save Outfit calls OutfitsCubit.saveOrFind: a result identical in items order to an existing outfit reuses it (list length unchanged); otherwise a new outfit is inserted at index 0; toast 'Saved to your outfits' and navigation to /saved-detail
 F03-A28  [U]  (Plan modal does not use the scheduling draft; it calls plan directly.) Plan Outfit opens modal 'Plan this outfit' with body 'Choose a date in October 2026 for <name>.' and 17 day buttons 15..31; tapping 20 calls PlannerCubit.plan('2026-10-20', ...) (not a numeric key), selects day 20, closes the modal, lands on /calendar and toasts 'Outfit scheduled for October 20'
@@ -119,13 +120,13 @@ None. Resolved 2026-10-16: `createMatches` is an exact port (A09-A11 amended); `
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: DONE (gates 1-3); gate 4 open
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/34 PASS
-Regression: —
+Assertions: 33/34 PASS (A34 [L] pending parity pass)
+Regression: flutter test 136 passed; flutter analyze clean
 ```

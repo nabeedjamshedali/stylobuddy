@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'features/calendar/cubit/planner_cubit.dart';
 import 'features/profile/cubit/profile_cubit.dart';
 import 'features/saved/cubit/outfits_cubit.dart';
+import 'features/stylist/cubit/stylist_cubit.dart';
 import 'features/wardrobe/cubit/wardrobe_cubit.dart';
 import 'features/wardrobe/repository/wardrobe_repository.dart';
 
@@ -26,6 +27,9 @@ class StyloBuddyApp extends StatelessWidget {
         ),
         BlocProvider(create: (_) => PlannerCubit()),
         BlocProvider(create: (_) => ProfileCubit()),
+        BlocProvider(
+          create: (context) => StylistCubit(context.read<WardrobeCubit>()),
+        ),
       ],
       child: MaterialApp.router(
         title: 'StyloBuddy',
