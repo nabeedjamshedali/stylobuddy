@@ -63,11 +63,13 @@ class ResultDetailView extends StatelessWidget {
                 outfitName: outfit.name,
                 chosenDay: planState.day,
                 onPick: (day) {
+                  planner.startScheduling(outfit.id, outfit.occasion);
                   planner.plan(
                     PlannerCubit.keyFor(2026, 10, day),
                     PlannedEntry(outfitId: outfit.id, occasion: outfit.occasion),
                   );
                   planner.select(day);
+                  planner.clearEditing();
                   AppModal.close(dialogContext);
                   router.push(AppRoutes.calendar);
                   AppToast.show(context, 'Outfit scheduled for October $day');

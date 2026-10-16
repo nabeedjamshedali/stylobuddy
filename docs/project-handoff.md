@@ -1,129 +1,139 @@
 # StyloBuddy — Project Handoff
 
-Written 2026-10-13, for whichever Claude Code session picks this project
-up next. This repo already has the `flutter-app-dev-agent` kit installed
-(`CLAUDE.md` + `.claude/agents/*.md`) — read those first if you haven't;
-this doc is the "where we actually are" status report layered on top.
+Rewritten 2026-10-17, after Task 14 (final integration pass) of the
+`2026-10-16-prototype-port` plan. This repo has the `flutter-app-dev-agent`
+kit installed (`CLAUDE.md` + `.claude/agents/*.md`) — read those first if
+you haven't. This doc replaces the 2026-10-13 version, which described an
+early 3-screen onboarding scaffold; that scope has since been superseded
+entirely by a full screen-for-screen port of the StyloBuddy HTML
+prototype. Don't rely on the old version for anything.
 
-## What exists right now
+## What this app actually is right now
 
-- **Location**: `C:\workspace\my projects\mobile_applications\stylobuddy`
-- **Scaffold**: `flutter create` done, org `com.stylobuddy`, package
-  `com.stylobuddy.stylobuddy`. Feature-based folder structure applied
-  (`lib/core/`, `lib/shared/`, `lib/features/`) per
-  `.claude/agents/tech-stack.md`.
-- **State management**: `flutter_bloc` (Cubit) added, one Cubit built so
-  far (`OnboardingCubit`).
-- **Built screens**: splash screen + a 3-screen onboarding flow +
-  a placeholder "onboarding complete" stub screen. That's it — no PRD,
-  no auth, no core app features, no backend wiring. This was a
-  deliberate scope cut (see "What was explicitly skipped" below).
-- **Git**: initialized, 2 commits so far (scaffold, then wiring in the
-  real hero photo).
-- **Verification done**: `flutter analyze` clean, `flutter test` passing
-  (one smoke test), manually verified in Chrome via
-  `flutter run -d chrome` — not yet verified on an Android
-  emulator/device.
+A **complete 64-screen prototype port**, not yet a backend-integrated
+product. Every screen from the HTML/JS prototype
+(`stylobuddy-v23-mobile-icon-final/stylobuddy-prototype/` at the repo
+root — untracked, the user's reference copy, never edit or delete it) has
+been rebuilt as a real Flutter screen, wired to Cubit state management and
+`go_router` navigation, and verified side-by-side against the prototype.
+**All data is in-memory sample data** (`lib/shared/data/seed_data.dart` +
+Cubits holding state in RAM) — nothing is persisted, there is no real
+authentication, and no backend service has been wired in. Closing the app
+loses all changes.
 
-## How this got built (context, not instructions)
+### What's done
 
-The user gave one reference shot (Dribbble: ["Next Generation Fashion
-App Design"](https://dribbble.com/shots/27604984-Next-Generation-Fashion-App-Design),
-not directly fetchable — it's behind an AWS WAF bot challenge, and this
-session had no browser tool, so the user pasted the screenshot
-directly) showing 3 app screens: a "Redefine Your Style with AI" hero
-screen, an "AI Stylist" 360°-view screen, and a product detail screen.
-The user asked to turn that into a Flutter splash + onboarding flow with
-"exact same images and UI," explicitly scoped to **not** build out the
-rest of the app yet ("I changed a lot of stuff").
+- **13 feature slices (F01–F13), all built, reviewed, and tested**:
+  F01 design foundation (theme/router/asset registry/app shell), F02
+  onboarding + auth UI, F03 AI stylist, F04 Match My Clothes, F05 home
+  dashboard, F06 wardrobe, F07 outfit builder, F08 saved looks, F09
+  calendar, F10 packing assistant, F11 shopping assistant, F12 style
+  insights, F13 profile/settings/premium preview.
+- **State management**: `flutter_bloc` Cubits only (`WardrobeCubit`,
+  `OutfitsCubit`, `PlannerCubit`, `ProfileCubit`, `StylistCubit`,
+  `WardrobeBrowseCubit`, `ImportCubit`, `BuilderCubit`, `ShoppingCubit`),
+  all provided at the app root in `lib/app.dart`. Plain state classes with
+  `copyWith`, no Provider/Riverpod/GetX/Freezed.
+- **Navigation**: `go_router`, hash-based on web (`/#/<route>`), one path
+  per prototype route (`lib/core/router/app_routes.dart` — 63 route
+  constants, matching the prototype's `pages.*` keys). Bottom-nav tabs use
+  `context.go`; drill-down screens use `context.push` so system/browser
+  back works like the prototype's own history stack.
+- **Cross-feature wiring unified (Task 14)**: F03's AI-stylist
+  result-detail "Plan Outfit" action now goes through
+  `PlannerCubit.startScheduling(outfitId, occasion)` /
+  `.clearEditing()`, the same draft-scheduling API F08 (saved looks) and
+  F09 (calendar) use, instead of calling `plan()`/`select()` in isolation
+  (`lib/features/stylist/view/result_detail_view.dart`).
+- **Tests**: 388 tests, full suite green (`flutter test`). `flutter
+  analyze` reports "No issues found!". Every feature document's assertions
+  (`docs/features/F01..F13-*.md`) have a covering test named after its
+  assertion ID (`F03_A28`, etc.).
+- **Visual parity pass**: screenshots of all ~63 routes captured for both
+  the HTML prototype (served on :8801) and this Flutter web build (served
+  on :8802) at 390x844 via `scripts/parity/shoot.js` (Playwright). A
+  representative sample across every feature was inspected; see
+  `.superpowers/sdd/2026-10-16-prototype-port/task-14-report.md` for the
+  full log of what was checked, what was fixed, and what's an accepted
+  Flutter-vs-browser rendering limitation (e.g. no native dashed border,
+  headless-Chromium emoji-glyph tofu in the screenshot tool itself, not a
+  real-device issue).
+- **Android build**: `flutter build apk --debug` succeeds
+  (`build/app/outputs/flutter-apk/app-debug.apk`).
 
-The 3 reference screens were mapped onto 3 onboarding pages (not used
-as literal in-app screens):
+### What's explicitly NOT done — don't assume otherwise
 
-| Onboarding page | File | Reference screen it mirrors |
-|---|---|---|
-| 1. Hero / value prop | `lib/features/onboarding/widgets/hero_upload_page.dart` | "Redefine Your Style with AI" hero screen |
-| 2. AI Stylist | `lib/features/onboarding/widgets/ai_stylist_page.dart` | 360° AI Stylist screen |
-| 3. Curated Picks | `lib/features/onboarding/widgets/curated_picks_page.dart` | Product detail screen |
+This is the single most important thing for the next session to
+internalize: **zero backend integration exists**. Specifically, none of
+the following from `.claude/agents/tech-stack.md` has been wired in yet:
 
-## Design system (already encoded as tokens — don't re-derive, reuse)
+- **Firebase Auth** — F02's login/signup/forgot/verify screens are UI
+  only, backed by in-memory `S.auth`-style state (no `firebase_auth`
+  package calls, no real session).
+- **Firestore** — no persistence at all. Wardrobe items, outfits, planned
+  calendar entries, trips, wishlist, profile — all of it lives only in
+  Cubit state for the lifetime of the app process, seeded from
+  `lib/shared/data/seed_data.dart` on launch.
+- **Supabase Storage** — the wardrobe "import"/"add item" flow is fully
+  simulated (`lib/features/wardrobe/cubit/import_cubit.dart`); no real
+  image upload.
+- **Supabase Edge Functions** — none exist.
+- **RevenueCat** — F13's premium/plan/purchase/subscription screens are
+  static previews; "Free" is hardcoded, no entitlement checks, no real
+  purchase flow.
+- **Firebase Analytics / Crashlytics / Remote Config** — not added.
+- **Security rules / hardening** — nothing to audit yet since there's no
+  backend; Firestore/Storage rules, Supabase auth checks, and a
+  secrets/API-key check are all still open once the above exists.
 
-Live in `lib/core/theme/`:
-- `app_colors.dart` — dark background (`#0E0C0B`), warm coral/amber
-  radial-glow gradient (`heroGradient`), accent orange (`#FF6B35`),
-  text color scale.
-- `app_text_styles.dart` — Manrope (via `google_fonts`), bold/tight
-  headlines, accent-colored keyword spans.
-- `app_theme.dart` — pulls the above into a single dark `ThemeData`.
+See `docs/tracker.md` for the itemized status (Design/Onboarding/Core
+Features are done; Integration and Security are PENDING).
 
-Shared visual components in `lib/shared/widgets/`:
-- `GradientBackdrop` — the signature warm-glow-fading-to-black backdrop.
-- `PrimaryPillButton` — full-width gradient pill CTA with a circular
-  white arrow glyph, used for every onboarding "Next"/"Get Started".
-- `PlaceholderPhoto` — styled gradient+icon stand-in for a missing real
-  photo/illustration asset (see next section).
+## Where to pick up next
 
-**Convention**: no inline hex colors or raw `TextStyle`s in screens/
-widgets — always pull from these tokens. Keep following this.
-
-## Image assets — status (per `project-hygiene.md`'s "ask, don't assume")
-
-- `assets/images/onboarding_hero_portrait.png` — **real asset**, the
-  actual cutout photo from the reference shot (user supplied it
-  directly), wired into onboarding page 1 (`hero_upload_page.dart`).
-- Onboarding page 2 (AI Stylist 360° view) and page 3 (jacket product
-  photo) are **still using `PlaceholderPhoto`/icon stand-ins** — the
-  user has not yet supplied those two cutouts. **Ask the user for them
-  before treating onboarding as visually "done"**, or ask whether to
-  generate AI stand-in images instead (and if so, write prompts into
-  `docs/image-prompts.md` and ask before actually generating, per
-  `project-hygiene.md`).
-
-## What was explicitly skipped (don't assume these are stale/forgotten — they were never started)
-
-Per the user's explicit scope choice ("scaffold only, no backend
-wiring"), none of the following from the kit's normal kickoff flow has
-happened yet:
-- `docs/PRD.md` (idea, target user, MVP loop, monetization) — not
-  written. The app's actual product idea/core loop was never discussed
-  beyond "fashion app, AI styling, redesign of StyloBuddy."
-- `docs/onboarding-spec.md` — the onboarding flow above was designed
-  ad hoc from the reference shot, not through the kit's normal
-  "ask depth preference → write spec" flow (`onboarding-builder.md`).
-  It's 3 screens (closer to "Minimal"), no personalization questions,
-  no paywall screen. Confirm with the user whether this is final or
-  whether they want the full onboarding-builder flow run properly
-  (deeper personalization, paywall placement, etc).
-- `docs/tracker.md` — not created.
-- Firebase (Auth/Firestore/Analytics/Crashlytics/Remote Config),
-  Supabase (Storage/Edge Functions), RevenueCat — **none wired in**.
-  No service account key or Supabase token has been requested yet.
-- No real app features (home feed, AI stylist feature, cart/checkout,
-  etc.) exist — just the splash/onboarding shell and a stub
-  "onboarding complete" screen (`lib/features/home/view/home_placeholder_view.dart`)
-  as the landing point.
-
-## Suggested next steps (confirm with user before running, per kit rules)
-
-1. Resolve the 2 missing image assets (ask first).
-2. Run `.claude/agents/prd-generator.md`'s ideation questions properly —
-   the user said they "changed a lot of stuff" about the idea, so don't
-   assume the old `stylobuddy` web/research-paper project's scope still
-   applies; ask fresh.
-3. Once the idea is confirmed, decide whether the existing 3-screen
-   onboarding stands or gets rebuilt via `onboarding-builder.md`'s
-   proper depth-preference flow.
-4. Only then move to Step 5/6 of `project-kickoff.md` (wire the stack,
-   propose a build order, start building real features) — per
-   `project-kickoff.md`, stop and confirm build order with the user
-   before starting implementation.
-5. Firebase/Supabase credentials: ask for them when first needed, don't
-   block earlier steps on it.
+1. **Wire Firebase**: ask the user for a service-account key, create/
+   configure the Firebase project per `.claude/agents/tech-stack.md`,
+   add `firebase_auth` + `cloud_firestore`, replace F02's simulated auth
+   state with real Firebase Auth, and replace the in-memory Cubit seed
+   data with Firestore-backed repositories (the wardrobe feature already
+   has a `WardrobeRepository` seam in `lib/features/wardrobe/repository/`
+   — extend that pattern to the other features' Cubits rather than
+   putting Firestore calls directly in Cubits/widgets).
+2. **Wire Supabase Storage** for wardrobe item photos (ask for an access
+   token), replacing the simulated import flow.
+3. **Wire RevenueCat** for the premium/subscription screens once there's
+   a real backend user to attach entitlements to.
+4. **Add Firebase Analytics/Crashlytics/Remote Config** per the standard
+   kit wiring.
+5. Once backend wiring exists, run a security/hardening pass (Firestore
+   + Storage rules, secrets check) before shipping.
+6. iOS: this port has only been built/verified for Android + web (for
+   the parity screenshots). No iOS-specific work has been done; expect
+   the usual iOS packaging/signing setup when that becomes a priority.
 
 ## Running it
 
 ```
 cd "C:\workspace\my projects\mobile_applications\stylobuddy"
-flutter run -d chrome   # fastest visual loop
-flutter run              # Android, once a device/emulator is attached
+flutter run -d chrome        # fastest visual loop
+flutter run                  # Android, once a device/emulator is attached
+flutter build apk --debug    # confirmed working
 ```
+
+Parity screenshot tooling (regenerate anytime the UI changes):
+
+```
+cd "C:\Users\DELL\Downloads\stylobuddy-v23-mobile-icon-final\stylobuddy-prototype"
+python -m http.server 8801   # serves the reference HTML prototype
+
+cd "C:\workspace\my projects\mobile_applications\stylobuddy"
+flutter build web
+cd build\web && python -m http.server 8802   # serves this app
+
+cd "C:\workspace\my projects\mobile_applications\stylobuddy\scripts\parity"
+npm install                  # first time only
+npx playwright install chromium   # first time only
+node shoot.js                # all routes, or `node shoot.js <slug-filter>` for one
+```
+
+Screenshot pairs land in `scripts/parity/out/<route-slug>-{proto,app}.png`.
