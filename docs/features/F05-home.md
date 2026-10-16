@@ -2,7 +2,7 @@
 
 > The dashboard: greeting, quick actions, today's suggestion, AI banner, recently added grid and explore rows. Plan Task 5; prototype `app.js:40-62`. Depends on foundation 03, 04.
 
-**Status:** NOT STARTED · **Milestone:** 1 · **Depends on:** F01, F03
+**Status:** IMPLEMENTED · **Milestone:** 1 · **Depends on:** F01, F03
 
 ---
 
@@ -82,13 +82,13 @@ None.
 ## Completion block
 
 ```
-Status: NOT STARTED
+Status: IMPLEMENTED
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 0/13 PASS
-Regression: —
+Assertions: 12/13 PASS (A13 is [L], pending the parity pass)
+Regression: full `flutter test` suite green (174/174); `flutter analyze` clean
 ```
