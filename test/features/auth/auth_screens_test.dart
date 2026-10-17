@@ -48,8 +48,14 @@ void main() {
       expect(find.text('Continue with Apple'), findsOneWidget);
       expect(find.text('Continue with Email'), findsOneWidget);
 
-      await tapText(tester, 'Continue with Google');
-      expect(find.text('Google authentication UI preview'), findsOneWidget);
+      // Google is wired to real Firebase Auth now: the sign-in call never
+      // resolves without a platform channel, so only check the immediate,
+      // synchronous loading state rather than waiting for it to settle.
+      await tester.ensureVisible(find.text('Continue with Google'));
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pump();
+      expect(find.text('Signing in…'), findsOneWidget);
+
       await tapText(tester, 'Continue with Apple');
       expect(find.text('Apple authentication UI preview'), findsOneWidget);
       await drainToast(tester);

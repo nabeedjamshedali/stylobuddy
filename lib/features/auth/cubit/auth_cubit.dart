@@ -1,11 +1,18 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../repository/auth_repository.dart';
 import 'auth_state.dart';
 
-/// Demo-only auth: validates like the prototype's `authSubmit` and remembers
-/// the entered email. No backend, no email is sent.
+/// Email/password/forgot forms are demo-only (validate like the prototype's
+/// `authSubmit`, no backend, no email sent) to keep the cloned prototype UI
+/// intact. Google sign-in is wired to real Firebase Auth.
 class AuthCubit extends Cubit<AuthState> {
-  AuthCubit() : super(const AuthState());
+  AuthCubit({AuthRepository? repository})
+    : _repository = repository ?? AuthRepository(),
+      super(const AuthState());
+
+  final AuthRepository _repository;
 
   static const shortPasswordError =
       'Use at least 8 characters for your password.';
@@ -85,5 +92,45 @@ class AuthCubit extends Cubit<AuthState> {
       ),
     );
     return AuthResult.success;
+  }
+
+  /// Real Firebase Auth Google sign-in (the project's only wired provider).
+  Future<AuthResult> signInWithGoogle() async {
+    emit(
+      state.copyWith(isGoogleSigningIn: true, clearGoogleError: true),
+    );
+    try {
+      final user = await _repository.signInWithGoogle();
+      emit(
+        state.copyWith(
+          email: user.email ?? '',
+          isGoogleSigningIn: false,
+          clearGoogleError: true,
+        ),
+      );
+      return AuthResult.success;
+    } on FirebaseAuthException catch (e) {
+      emit(
+        state.copyWith(
+          isGoogleSigningIn: false,
+          googleError: e.message ?? 'Google sign-in failed.',
+        ),
+      );
+      return AuthResult.failure;
+    } on StateError {
+      // User cancelled the Google account picker: not an error to surface.
+      emit(state.copyWith(isGoogleSigningIn: false, clearGoogleError: true));
+      return AuthResult.failure;
+    } catch (_) {
+      // Plugin/platform failure (no network, Play Services unavailable,
+      // etc.) — show a generic message rather than crash the screen.
+      emit(
+        state.copyWith(
+          isGoogleSigningIn: false,
+          googleError: 'Google sign-in failed. Please try again.',
+        ),
+      );
+      return AuthResult.failure;
+    }
   }
 }
