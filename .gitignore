@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .superpowers/
+
+# Reference copy of the HTML prototype (source for the Flutter port, not app code)
+/stylobuddy-v23-mobile-icon-final/
