@@ -303,6 +303,39 @@ void main() {
   );
 
   testWidgets(
+    'F14_initialData_first_frame a cold start already signed in renders the '
+    'signed-in subtree on the very first frame, before the uid stream has '
+    'emitted anything',
+    (tester) async {
+      // Deliberately never calls `await tester.pumpAndSettle()` or any
+      // `pump()` before the first assertion: the bug this guards against is
+      // specifically about what is visible on the very first build, before
+      // any microtask (and so before the stream's own first, always-async,
+      // emission) has had a chance to run. `pumpWidget` itself performs
+      // exactly one frame.
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+
+      // Deliberately no `router:` override: the uid-aware
+      // `initialLocation` pick lives in `_RoutedMaterialAppState.initState`,
+      // which only runs when app.dart builds its own router (see
+      // `F14_A05_home_regression` above for the same reasoning).
+      await tester.pumpWidget(
+        StyloBuddyApp(uidStream: controller.stream, initialUid: 'uid-1'),
+      );
+
+      expect(
+        find.byType(WelcomeView),
+        findsNothing,
+        reason:
+            'the guest subtree must not render even for one frame when the '
+            'StreamBuilder was given a signed-in initialData',
+      );
+      expect(find.byType(HomeView), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'F14_A07 StyloBuddyApp with no uidStream override renders guest/SeedData state (relies on the synchronous guest-mode fallback in uidChanges(), not an injected fake stream)',
     (tester) async {
       // Deliberately no `uidStream:` override: this exercises the real

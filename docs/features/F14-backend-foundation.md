@@ -157,10 +157,19 @@ the device is offline, so a caller (Task 5+) must handle that failure path rathe
 - A sign-in/out transition always fully disposes the previous subtree before building the
   next one — never a partial rebuild that could leave one stale Cubit instance mixed with new
   ones (architecture D3's whole point).
-- `uidChanges()` seeds its first emission synchronously from
-  `FirebaseAuth.instance.currentUser?.uid` (when using the real instance, not an injected test
-  stream) ahead of `authStateChanges()`'s own first event, so a signed-in user's very first frame
-  already renders the signed-in subtree instead of flashing guest/SeedData state for one frame.
+- `uidChanges()`'s own first emission is always delivered asynchronously (`StreamController.add`
+  never delivers synchronously, even when seeded from the real `currentUser` at call time), so a
+  `StreamBuilder` subscribed to it alone still sees `snapshot.data == null` on its very first
+  build regardless of the actual signed-in state — seeding the stream itself does **not** avoid
+  a one-frame guest flash on a signed-in cold start. The actual fix lives in `lib/app.dart`:
+  `shared/backend/auth_session.dart` additionally exposes `currentUid()`, a synchronous read of
+  `FirebaseAuth.instance.currentUser?.uid`, which `app.dart` passes as the production
+  `StreamBuilder`'s `initialData`. With `initialData` set, the very first build already reflects
+  the signed-in uid; the stream's own (still-async) first emission is then a same-value duplicate
+  that `distinct()`/the unchanged `ValueKey` absorb with no visible rebuild. Verified by
+  `F14_initialData_first_frame` in `test/app_backend_wiring_test.dart`, which asserts on the
+  state right after `pumpWidget` — before any further `pump()` lets microtasks run — that the
+  signed-in subtree, not `WelcomeView`, is already present.
   `app.dart`'s newly-built `GoRouter` on a uid change also picks its `initialLocation` from that
   uid (`AppRoutes.home` when non-null, `AppRoutes.welcome` when null), so a fresh sign-in lands on
   Home rather than racing `AuthView`'s own `context.go(AppRoutes.home)` against the default

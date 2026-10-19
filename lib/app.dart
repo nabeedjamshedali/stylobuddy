@@ -19,7 +19,12 @@ import 'features/wardrobe/repository/wardrobe_repository.dart';
 import 'shared/backend/auth_session.dart';
 
 class StyloBuddyApp extends StatefulWidget {
-  const StyloBuddyApp({super.key, this.router, this.uidStream});
+  const StyloBuddyApp({
+    super.key,
+    this.router,
+    this.uidStream,
+    this.initialUid,
+  });
 
   /// Override for tests; when omitted a brand-new [GoRouter] is built (via
   /// [createAppRouter]) every time the uid-keyed subtree below is rebuilt —
@@ -40,6 +45,16 @@ class StyloBuddyApp extends StatefulWidget {
   /// without ever touching `FirebaseAuth.instance` (F14-A05/A06/A08/A09).
   final Stream<String?>? uidStream;
 
+  /// Test-only seam: when paired with [uidStream] (never used alone, and
+  /// never set by production code — the real app always omits this and
+  /// relies on [currentUid] instead), this is the value the `StreamBuilder`
+  /// built around [uidStream] renders on its very first build, before
+  /// [uidStream] has emitted anything. Lets a widget test prove the "already
+  /// signed in at cold start" first frame — see
+  /// `F14_initialData_first_frame` in `test/app_backend_wiring_test.dart` —
+  /// without touching `FirebaseAuth.instance`.
+  final String? initialUid;
+
   @override
   State<StyloBuddyApp> createState() => _StyloBuddyAppState();
 }
@@ -50,10 +65,27 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
   // torn down and resubscribed on every unrelated root rebuild.
   late Stream<String?> _uidStream;
 
+  /// `StreamBuilder`'s `initialData`. For the production `uidChanges()`
+  /// stream this is always [currentUid]'s synchronous read. For a
+  /// test-injected `widget.uidStream`, it is `widget.initialUid` (`null`
+  /// unless a test opts in) rather than a fresh `currentUid()` call, so a
+  /// test never depends on the real `FirebaseAuth.instance`. `uidChanges()`'s
+  /// own first emission is always asynchronous, so without this, a
+  /// signed-in cold start would render the guest subtree for one frame
+  /// before that first emission arrives — see the `currentUid()`/
+  /// `uidChanges()` doc comments in `shared/backend/auth_session.dart`.
+  String? _initialUid;
+
   @override
   void initState() {
     super.initState();
-    _uidStream = widget.uidStream ?? uidChanges();
+    if (widget.uidStream != null) {
+      _uidStream = widget.uidStream!;
+      _initialUid = widget.initialUid;
+    } else {
+      _initialUid = currentUid();
+      _uidStream = uidChanges();
+    }
   }
 
   @override
@@ -74,6 +106,7 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
   Widget build(BuildContext context) {
     return StreamBuilder<String?>(
       stream: _uidStream,
+      initialData: _initialUid,
       builder: (context, snapshot) {
         // Keyed by uid (architecture D3): every sign-in/sign-out fully
         // tears down the previous MultiBlocProvider subtree (every root

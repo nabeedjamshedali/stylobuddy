@@ -14,6 +14,16 @@ User _userWithUid(String uid) {
 }
 
 void main() {
+  test(
+    'F14_currentUid returns null synchronously when FirebaseAuth is not initialized',
+    () {
+      // Mirrors F14_A14: no Firebase.initializeApp() call in this test, so
+      // FirebaseAuth.instance throws synchronously; currentUid() must catch
+      // that and return null rather than propagate.
+      expect(currentUid(), isNull);
+    },
+  );
+
   test('F14_A01 uidChanges emits null as its first event for a signed-out source', () async {
     final source = Stream<User?>.value(null);
 

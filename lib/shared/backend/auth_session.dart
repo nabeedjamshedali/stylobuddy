@@ -3,6 +3,40 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
+/// Synchronously reads the currently signed-in uid (or `null` for
+/// guest/signed-out) directly from `FirebaseAuth.instance.currentUser`, with
+/// no stream involved.
+///
+/// This exists specifically to be passed as a `StreamBuilder`'s
+/// `initialData` (see `lib/app.dart`): [uidChanges]'s own first emission is
+/// always delivered asynchronously (`StreamController.add` never delivers
+/// synchronously, even when seeded from this same value), so a
+/// `StreamBuilder` listening to [uidChanges] alone still sees
+/// `snapshot.data == null` on its very first build regardless of the real
+/// signed-in state — a signed-in cold start would flash the guest subtree
+/// for one frame before the stream's first event arrives. Supplying
+/// [currentUid] as `initialData` makes the first build already correct, so
+/// that flash cannot happen.
+///
+/// Never throws: if resolving `FirebaseAuth.instance` itself throws
+/// synchronously (e.g. a widget test that pumps `StyloBuddyApp` without ever
+/// calling `Firebase.initializeApp()`), this returns `null` (signed-out)
+/// instead of propagating the exception into `build()` — the same guard
+/// [uidChanges] applies for the same reason (F14-A14).
+String? currentUid() {
+  try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return uid == null || uid.isEmpty ? null : uid;
+  } catch (error) {
+    if (kDebugMode) {
+      debugPrint(
+        'currentUid(): FirebaseAuth.instance unavailable ($error); falling back to signed-out.',
+      );
+    }
+    return null;
+  }
+}
+
 /// Wraps [FirebaseAuth]'s auth-state stream into the single `uid` (or
 /// `null`) signal every root Cubit's construction is keyed on (architecture
 /// D3). `null` means guest/signed-out; a non-empty string is the signed-in
@@ -11,7 +45,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 /// - De-duplicated via [Stream.distinct]: a repeated identical value (same
 ///   uid twice, or `null` twice) in a row is collapsed to one emission, so a
 ///   `StreamBuilder` keyed on this stream never rebuilds its subtree for a
-///   duplicate (F14-A04).
+///   duplicate emission (F14-A04).
 /// - An empty-string uid (not expected from the real SDK, defended against
 ///   per the feature doc's edge cases) is treated the same as `null`.
 /// - Never throws into its listener: if the underlying [authStateChanges]
@@ -23,26 +57,24 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 ///   ever calling `Firebase.initializeApp()`) — a signed-out-only stream is
 ///   returned instead of letting the exception propagate into `build()`.
 ///
+/// Important: this stream's own first emission is always asynchronous, even
+/// on the real `FirebaseAuth.instance` path — a `StreamBuilder` subscribed
+/// to only this stream will still see `snapshot.data == null` on its very
+/// first build regardless of the actual signed-in state. Pair this stream
+/// with [currentUid] as the `StreamBuilder`'s `initialData` (see
+/// `lib/app.dart`) to avoid a one-frame guest flash on a signed-in cold
+/// start; this function alone does not prevent that.
+///
 /// [authStateChanges] is an injection point for tests (a fake stream of
 /// [User]/`null` events); it defaults to the real
 /// `FirebaseAuth.instance.authStateChanges()`.
 Stream<String?> uidChanges({Stream<User?>? authStateChanges}) {
   Stream<User?> source;
-  // Seeded synchronously (when using the real FirebaseAuth instance) from
-  // `currentUser` below, so a signed-in user's very first frame already
-  // reflects the signed-in subtree instead of flashing guest/SeedData state
-  // for one frame while `authStateChanges()`'s first event is still
-  // in-flight.
-  String? initialUid;
   if (authStateChanges != null) {
     source = authStateChanges;
   } else {
     try {
       source = FirebaseAuth.instance.authStateChanges();
-      final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      initialUid = currentUid == null || currentUid.isEmpty
-          ? null
-          : currentUid;
     } catch (error) {
       // Expected in a widget test that never calls Firebase.initializeApp
       // (F14-A14) — `FirebaseAuth.instance` throws synchronously in that
@@ -64,17 +96,6 @@ Stream<String?> uidChanges({Stream<User?>? authStateChanges}) {
   void addUid(User? user) {
     final uid = user?.uid;
     controller.add(uid == null || uid.isEmpty ? null : uid);
-  }
-
-  // Seed the already-known current uid (if any) before the first
-  // `authStateChanges()` event arrives, so a `StreamBuilder` listening to
-  // this stream's first emission already reflects a signed-in user on its
-  // very first frame instead of flashing guest state for one frame. Queued
-  // on the controller ahead of the subscription below, so it is always
-  // delivered first; `distinct()` on the returned stream collapses it with
-  // an identical duplicate that `authStateChanges()` then emits.
-  if (initialUid != null) {
-    controller.add(initialUid);
   }
 
   subscription = source.listen(
