@@ -11,6 +11,8 @@ import 'features/calendar/cubit/planner_cubit.dart';
 import 'features/packing/cubit/packing_cubit.dart';
 import 'features/profile/cubit/profile_cubit.dart';
 import 'features/saved/cubit/outfits_cubit.dart';
+import 'features/saved/repository/firestore_outfits_repository.dart';
+import 'features/saved/repository/in_memory_outfits_repository.dart';
 import 'features/shopping/cubit/shopping_cubit.dart';
 import 'features/stylist/cubit/stylist_cubit.dart';
 import 'features/wardrobe/cubit/import_cubit.dart';
@@ -148,7 +150,15 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
               ),
             ),
             BlocProvider(
-              create: (context) => OutfitsCubit(context.read<WardrobeCubit>()),
+              create: (context) => OutfitsCubit(
+                context.read<WardrobeCubit>(),
+                snapshot.data == null
+                    ? InMemoryOutfitsRepository()
+                    : FirestoreOutfitsRepository(
+                        FirestoreService(firestore: widget.firestoreOverride),
+                        snapshot.data!,
+                      ),
+              ),
             ),
             BlocProvider(create: (_) => PlannerCubit()),
             BlocProvider(create: (_) => ProfileCubit()),
