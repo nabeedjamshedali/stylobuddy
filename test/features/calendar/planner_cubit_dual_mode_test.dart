@@ -7,6 +7,7 @@ import 'package:stylobuddy/features/calendar/repository/firestore_planner_reposi
 import 'package:stylobuddy/features/calendar/repository/in_memory_planner_repository.dart';
 import 'package:stylobuddy/features/calendar/repository/planner_repository.dart';
 import 'package:stylobuddy/shared/backend/firestore_service.dart';
+import 'package:stylobuddy/shared/data/seed_data.dart';
 import 'package:stylobuddy/shared/models/planned_entry.dart';
 
 /// Bounded polling wait, per the implementer contract's "Known gotcha":
@@ -72,6 +73,39 @@ class _FailingPlannerRepository implements PlannerRepository {
       : _delegate.remove(key);
 }
 
+/// Repository double that delegates every call to a real
+/// [InMemoryPlannerRepository] except [plan] for one specific [failingKey],
+/// which rejects after [failDelay] — used to prove the targeted (per-key)
+/// rollback ruling: a concurrent `plan()` for a *different* key that
+/// resolves successfully while the failing key's write is still pending
+/// must survive the failing key's rollback untouched.
+class _KeySpecificFailingPlannerRepository implements PlannerRepository {
+  _KeySpecificFailingPlannerRepository(
+    this._delegate, {
+    required this.failingKey,
+    required this.failDelay,
+  });
+
+  final InMemoryPlannerRepository _delegate;
+  final String failingKey;
+  final Duration failDelay;
+
+  @override
+  Stream<Map<String, PlannedEntry>> watchPlanned() => _delegate.watchPlanned();
+
+  @override
+  Future<void> plan(String key, PlannedEntry entry) async {
+    if (key == failingKey) {
+      await Future<void>.delayed(failDelay);
+      throw Exception('write failed (offline)');
+    }
+    return _delegate.plan(key, entry);
+  }
+
+  @override
+  Future<void> remove(String key) => _delegate.remove(key);
+}
+
 /// Repository double that fails the test if [plan]/[remove] is ever
 /// invoked — used to prove F17-A18: the transient-field Cubit methods
 /// never touch the repository. [watchPlanned] itself must still return a
@@ -95,7 +129,9 @@ class _FailOnAnyCallPlannerRepository implements PlannerRepository {
 
 void main() {
   test(
-    'F17_A11_cubit PlannerCubit constructed with InMemoryPlannerRepository vs FirestorePlannerRepository is a different object type, not just different data',
+    'F17_A11_cubit a signed-in PlannerCubit (FirestorePlannerRepository) '
+    'never shows the guest-mode seed plan — it starts empty, not merely '
+    'different data from the guest Cubit',
     () async {
       final guestCubit = PlannerCubit(
         repository: InMemoryPlannerRepository(),
@@ -116,6 +152,11 @@ void main() {
 
       expect(guestCubit.state.planned, isNotEmpty);
       expect(signedInCubit.state.planned, isEmpty);
+      // Not just empty in aggregate — none of the guest-mode seed plan's
+      // own keys leaked into the signed-in Cubit's state either.
+      for (final key in SeedData.planned.keys) {
+        expect(signedInCubit.state.planned.containsKey(key), isFalse);
+      }
     },
   );
 
@@ -164,6 +205,11 @@ void main() {
         () => cubit2.state.planned.containsKey('2026-12-01'),
       );
       expect(cubit2.state.planned['2026-12-01']!.outfitId, 5);
+      // Same guarantee as F17_A11_cubit: no guest-mode seed-plan key ever
+      // bleeds into a signed-in Cubit's state.
+      for (final key in SeedData.planned.keys) {
+        expect(cubit2.state.planned.containsKey(key), isFalse);
+      }
     },
   );
 
@@ -223,6 +269,50 @@ void main() {
         () => cubit.state.planned.containsKey('2026-10-15'),
       );
       expect(cubit.state.planned, before);
+    },
+  );
+
+  test(
+    'F17_A13_targeted_revert a plan(A) rollback after a slower failing write '
+    'reverts only key A and never clobbers a concurrent plan(B) that '
+    'succeeded in the meantime',
+    () async {
+      final delegate = InMemoryPlannerRepository();
+      final cubit = PlannerCubit(
+        repository: _KeySpecificFailingPlannerRepository(
+          delegate,
+          failingKey: '2026-10-20',
+          failDelay: const Duration(milliseconds: 40),
+        ),
+      );
+      addTearDown(cubit.close);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      // A: optimistic write that will fail after a delay.
+      cubit.plan(
+        '2026-10-20',
+        const PlannedEntry(outfitId: 2, occasion: 'Casual'),
+      );
+      // B: issued before A's write resolves, and succeeds quickly.
+      cubit.plan(
+        '2026-10-21',
+        const PlannedEntry(outfitId: 3, occasion: 'Formal'),
+      );
+
+      await _waitUntil(
+        () => cubit.state.planned.containsKey('2026-10-21'),
+      );
+      // B must have landed before A's rollback fires.
+      expect(cubit.state.planned['2026-10-21']!.outfitId, 3);
+
+      // Wait for A's rollback to fire.
+      await _waitUntil(
+        () => !cubit.state.planned.containsKey('2026-10-20'),
+      );
+
+      // B's entry must still be present — a full-map rollback of A's
+      // failure would have wiped it out.
+      expect(cubit.state.planned['2026-10-21']!.outfitId, 3);
     },
   );
 

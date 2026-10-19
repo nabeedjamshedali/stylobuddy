@@ -97,6 +97,12 @@ void main() {
     () async {
       await expectLater(repository.remove('2026-11-30'), completes);
 
+      final raw = await firestore
+          .collection('users/uid-1/plannedEntries')
+          .doc('2026-11-30')
+          .get();
+      expect(raw.exists, isFalse);
+
       final emitted = await repository.watchPlanned().first;
       expect(emitted, isEmpty);
     },
@@ -119,6 +125,57 @@ void main() {
             'plan/remove must not use runTransaction — neither reads a '
             'prior value to compute a new one (F17 doc §13)',
       );
+    },
+  );
+
+  test(
+    'F17_A17 a real Firestore round-trip: a document written with '
+    'occasion: \'\' reads back as a present (non-null) entry whose '
+    'occasion is empty — distinct from a key that was never written, '
+    'which reads back as absent/null, not a zero-value entry',
+    () async {
+      await repository.plan(
+        '2026-10-20',
+        const PlannedEntry(outfitId: 3, occasion: ''),
+      );
+
+      final written = await firestore
+          .collection('users/uid-1/plannedEntries')
+          .doc('2026-10-20')
+          .get();
+      expect(written.exists, isTrue);
+      expect(written.data()!['occasion'], '');
+
+      final emitted = await repository.watchPlanned().first;
+      // Present and non-null, with an empty occasion.
+      expect(emitted.containsKey('2026-10-20'), isTrue);
+      expect(emitted['2026-10-20'], isNotNull);
+      expect(emitted['2026-10-20']!.occasion, '');
+
+      // A key never written to Firestore at all must read back as
+      // genuinely absent — not a present entry with zero/empty values.
+      expect(emitted.containsKey('2026-11-30'), isFalse);
+      expect(emitted['2026-11-30'], isNull);
+    },
+  );
+
+  test(
+    'F17_A17_malformed a malformed document missing the outfitId field '
+    'decodes via _fromFirestore to outfitId: 0 — a present entry pointing '
+    'at outfit 0, not an absent entry',
+    () async {
+      // Writes a doc directly (bypassing repository.plan) with no
+      // outfitId field at all, simulating a malformed/partial document.
+      await firestore
+          .collection('users/uid-1/plannedEntries')
+          .doc('2026-10-20')
+          .set({'occasion': 'Casual'});
+
+      final emitted = await repository.watchPlanned().first;
+      expect(emitted.containsKey('2026-10-20'), isTrue);
+      expect(emitted['2026-10-20'], isNotNull);
+      expect(emitted['2026-10-20']!.outfitId, 0);
+      expect(emitted['2026-10-20']!.occasion, 'Casual');
     },
   );
 

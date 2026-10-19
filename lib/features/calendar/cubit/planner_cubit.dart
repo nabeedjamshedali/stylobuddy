@@ -93,34 +93,52 @@ class PlannerCubit extends Cubit<PlannerState> {
   /// instant-feeling UX and keeping the existing F09/F17-A08 guest-mode
   /// test suite's synchronous assertions unaffected), then fires the
   /// repository's own persistence call in the background. If that call
-  /// fails, rolls `state.planned` back to its pre-call value rather than
+  /// fails, reverts just [key] back to its pre-call value rather than
   /// leaving the optimistic entry in place (D6 "reconcile on failure",
-  /// F17-A13).
+  /// F17-A13) — the revert is a targeted single-key change applied against
+  /// the *current* `state.planned` at failure time, not a full-map restore
+  /// of the pre-call snapshot, so a concurrent `plan`/`remove` call (or a
+  /// remote Firestore snapshot) that already landed in the meantime is
+  /// never clobbered (same ruling as `OutfitsCubit.removeWear`, F16).
   void plan(String key, PlannedEntry entry) {
-    final previous = state.planned;
+    final previousEntry = state.planned[key];
     emit(state.copyWith(planned: {...state.planned, key: entry}));
     unawaited(() async {
       try {
         await _repository.plan(key, entry);
       } catch (error, stackTrace) {
         _logError('plan failed', error, stackTrace);
-        emit(state.copyWith(planned: previous));
+        if (isClosed) return;
+        final reverted = {...state.planned};
+        if (previousEntry == null) {
+          reverted.remove(key);
+        } else {
+          reverted[key] = previousEntry;
+        }
+        emit(state.copyWith(planned: reverted));
       }
     }());
   }
 
   /// Same optimistic-then-reconcile shape as [plan] (F17-A14): removes
-  /// [key] synchronously, then rolls back to the pre-call map on a
-  /// repository failure.
+  /// [key] synchronously, then on a repository failure restores just that
+  /// key's pre-call value into the *current* map — but only if the key is
+  /// still absent, so a newer write for the same key (landed after this
+  /// optimistic removal) is never clobbered by a stale restore.
   void remove(String key) {
-    final previous = state.planned;
+    final previousEntry = state.planned[key];
     emit(state.copyWith(planned: {...state.planned}..remove(key)));
     unawaited(() async {
       try {
         await _repository.remove(key);
       } catch (error, stackTrace) {
         _logError('remove failed', error, stackTrace);
-        emit(state.copyWith(planned: previous));
+        if (isClosed) return;
+        if (previousEntry != null && !state.planned.containsKey(key)) {
+          emit(
+            state.copyWith(planned: {...state.planned, key: previousEntry}),
+          );
+        }
       }
     }());
   }
