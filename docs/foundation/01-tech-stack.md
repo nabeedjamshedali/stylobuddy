@@ -14,9 +14,9 @@
 | State | `flutter_bloc` ^9.1 — Cubit only, plain state classes, hand-written `copyWith` |
 | Navigation | `go_router` ^14 |
 | Assets/UI | `flutter_svg` ^2, bundled DMSans + Manrope fonts (via `AppTextStyles`), `intl` ^0.20 |
-| Data (Milestone 1) | In-memory repositories seeded from `SeedData` (prototype data) |
-| Data (later) | Firestore, Supabase Storage, Firebase Auth, RevenueCat, Analytics, Crashlytics, Remote Config (none wired in Milestone 1) |
-| Tests | `flutter_test` (unit + widget); live run on Chrome |
+| Data (Milestone 1, guest) | In-memory repositories seeded from `SeedData` (prototype data) — unchanged, every guest path |
+| Data (Milestone 2, backend wiring) | Firebase Auth (Google sign-in, real), Firestore (foundation wired by F14: `uidChanges()`, `FirestoreService`, auth-gated Cubit reconstruction in `lib/app.dart`; per-feature repositories land Tasks 2-7), Crashlytics (real, `lib/main.dart`). Still later: Supabase Storage, RevenueCat, Analytics, Remote Config |
+| Tests | `flutter_test` (unit + widget); `fake_cloud_firestore` + `mocktail` for Firestore/Auth test doubles (never the real emulator/project in unit tests); live run on Chrome |
 | Tooling | `flutter_launcher_icons`, `flutter_native_splash` |
 
 ## 2. Choices and reasons
@@ -25,7 +25,7 @@
 - **Bundled fonts, no runtime fetch**: first launch must look right offline (ruling: plain pubspec families DMSans/Manrope; never `GoogleFonts.*` in feature code).
 - **SVG fallback for 7 garments** (cream-blouse, blue-jeans, sage-dress, black-skirt, gold-jewelry, sunglasses, green-shirt): the prototype's photos for these show the wrong garment; real product photos are tracked in `docs/image-prompts.md` and needed before store release.
 - **Hash URLs on web** for the parity/live runs (`/#/<route>`).
-- **No backend yet**: credentials are not requested until the later integration pass.
+- **Backend wiring is in progress, not deferred**: Firebase project `stylobuddy-b7e46` and Supabase project `stylobuddy` already exist; Google sign-in and Firestore's shared foundation (F14) are real. Remaining credentials (Supabase Storage upload flow, RevenueCat, etc.) are requested as their own task needs them.
 
 ## 3. Development environment
 
@@ -43,6 +43,7 @@ flutter build apk --debug          # Android build check
 ```
 lib/core/{theme,assets,router}      design tokens, AppAssets, AppRoutes/appRouter/AppShell
 lib/shared/{models,data,widgets}    ClothingItem/Outfit/WearEvent/PlannedEntry, SeedData, shared widgets
+lib/shared/backend                  auth_session.dart (uidChanges), firestore_service.dart (paths/converters/bootstrap)
 lib/features/<f>/{cubit,repository,view,widgets,<f>_routes.dart,<f>_tokens.dart}
 test/{core,shared,features/<f>}     mirrors lib
 assets/{fashion,garments,onboarding,branding,fonts}

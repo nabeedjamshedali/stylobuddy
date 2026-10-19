@@ -10,7 +10,7 @@
 1. The prototype is the spec: copy, layout and flow are ported 1:1 (CSS px = Flutter logical px at 390 wide).
 2. Widgets render state and forward intents; every state change goes through a Cubit.
 3. Cross-feature data (wardrobe, outfits + wear log, planner, profile, stylist session, builder draft) lives in Cubits provided at the app root; feature-local UI state lives in that feature's Cubit.
-4. Backends slot in behind repositories later; widgets never change.
+4. Backends slot in behind repositories; widgets never change. As of Milestone 2 (`docs/superpowers/specs/2026-10-19-backend-architecture.md`), this is real for auth (Firebase Auth, Google sign-in) and for the auth-gated Cubit reconstruction mechanism (`lib/app.dart`'s `StreamBuilder` keyed by uid, F14) — per-feature Firestore repositories land feature-by-feature (Tasks 2-7 of the backend-wiring plan).
 5. A feature may only touch its own `lib/features/<f>/` and `test/features/<f>/`; shared files belong to F01.
 
 ## 2. Layers
@@ -25,11 +25,11 @@ Dependencies point **one way only**.
    │  cubit/ (state + intents)                │  may use other root Cubits
    └──────────────────────────────────────────┘
    ┌──────────────────────────────────────────┐
-   │  repository/ + shared/models + SeedData  │  in-memory now, Firestore later
+   │  repository/ + shared/models + SeedData  │  in-memory for guests; Firestore per-feature as each lands
    └──────────────────────────────────────────┘
 ```
 
-`lib/core` (theme, assets, router) is usable by all layers.
+`lib/core` (theme, assets, router) is usable by all layers. `lib/shared/backend/` (`auth_session.dart`, `firestore_service.dart`) is the shared Firebase/Firestore plumbing every feature `repository/` file and `lib/app.dart` may call — never a `view`/`widgets` file (see boundary table below).
 
 ## 3. Request lifecycle
 

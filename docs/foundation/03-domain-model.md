@@ -43,6 +43,10 @@ ProfileState                                   # defaults mirror prototype app.j
     weatherConsent = true, climate = 'Mild', plan = 'Free', billingCycle = 'yearly'
     styleSummary (getter) = styles.join(' • ')
     PreferenceField { styles, occasions }
+    # NOTE: the Firestore `users/{uid}` document backing this state (schema doc §1) also carries
+    # a `seeded: bool` field once Milestone 2's backend wiring lands. That field is infra-only
+    # (set by FirestoreService.runBootstrapIfNeeded on first sign-in, F14) and is deliberately
+    # NOT part of ProfileState — ProfileRepository.watchProfile() excludes it from what it emits.
 
 StylistState (F03)   occasion = 'Everyday', results: List<StyleResult>, activeIndex, selected, locked: List<String>,
                      accessories = true, category = 'All', isMatchMode, isGenerating
