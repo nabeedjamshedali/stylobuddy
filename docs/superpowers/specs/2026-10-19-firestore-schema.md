@@ -56,7 +56,7 @@ it emits (infra field, not a domain field — do not add it to
 | `season` | string | |
 | `wears` | int | |
 | `sourceId` | string? | unchanged — still resolves bundled art for seed/demo items |
-| `imageUrl` | string? | **new** — Supabase Storage public/signed URL, set only when the user uploaded a real photo (see `supabase-storage-and-functions.md`). `GarmentImage` prefers this over `sourceId`/`imageId` resolution when present; falls back to the existing bundled-art logic when null. Added to `03-domain-model.md`'s `ClothingItem` entry as part of Task 2. |
+| `imageUrl` | string? | **new** — Supabase Storage path (`{uid}/{itemId}.jpg`), set only when the user uploaded a real photo (see `supabase-storage-and-functions.md`). As of Task 2, `user-photos` is a private bucket, so this is a storage path, not yet a fetchable URL — a signed read URL (or a public bucket) must be added before `GarmentImage` can prefer this over `sourceId`/`imageId` resolution. Falls back to the existing bundled-art logic when null. Added to `03-domain-model.md`'s `ClothingItem` entry as part of Task 2. |
 
 ## 3. `users/{uid}/outfits/{outfitId}`
 

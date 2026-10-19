@@ -130,8 +130,10 @@ Signed-in user adds an item with a real picked photo:
      file: xfile) -> storage-upload-url Edge Function verifies the caller's
      Firebase ID token -> signed URL (~2 hour expiry, Supabase's fixed
      window for upload URLs — see §13a) -> Flutter PUTs the bytes
-     directly to that URL -> uploadWardrobePhoto resolves with the final URL
-  -> the draft's ClothingItem is saved with imageUrl set to that URL via
+     directly to that URL -> uploadWardrobePhoto resolves with the storage
+     path (not a fetchable URL — the `user-photos` bucket is private, see
+     §13a)
+  -> the draft's ClothingItem is saved with imageUrl set to that path via
      FirestoreWardrobeRepository.addItem/addItems
   -> WardrobeCubit optimistically updates state; the Firestore snapshot
      listener later reconciles the same document -> /add-confirm
@@ -307,7 +309,7 @@ F15-A22  [U]  FirestoreWardrobeRepository.watchItems() performs zero writes on s
 F15-A23  [I]  Simulating two concurrent WardrobeCubit constructions for the same brand-new uid (e.g. a reconnect re-triggering app.dart's StreamBuilder rebuild) against a fake Firestore double never results in more than the bootstrap-seeded set of wardrobeItems documents — no duplicate items from the wardrobe path itself, re-verifying Review Focus item 4 at the wardrobe layer
 F15-A24  [I]  A full sign-in -> add an item with a picked photo -> sign-out -> sign-in-again cycle (F14's reconstruction pattern) leaves no stale picked-file/draft state in the newly-constructed ImportCubit — the picker draft from the previous signed-in session does not reappear
 F15-A25  [L]  Against the deployed storage-upload-url function (supabase functions deploy storage-upload-url --project-ref dbaeaqyoyilxcuwplvuw), a request carrying a real Firebase ID token for a live test user returns a real signed URL and a PUT of real image bytes to that URL succeeds — deferred to the live-verification pass, documented in the task report rather than a CI-run test, per the plan's Task 2 Step 2-4 instruction
-F15-A26  [L]  One real end-to-end run on a device/emulator: sign in, import an item using the real camera or gallery picker, confirm the saved item's imageUrl is a reachable Supabase Storage URL and the item persists (with that imageUrl) after killing and relaunching the app — deferred to the live-verification pass
+F15-A26  [L]  One real end-to-end run on a device/emulator: sign in, import an item using the real camera or gallery picker, confirm the saved item's imageUrl holds the expected storage path (not yet a reachable URL — bucket is private this task) and the item persists (with that path) after killing and relaunching the app — deferred to the live-verification pass
 F15-A27  [L]  Against the live Firebase + Supabase projects, a request to storage-upload-url with no Authorization header returns a real 401 from the deployed function (not just the local/unit double) — deferred to the live-verification pass
 ```
 
@@ -456,7 +458,7 @@ Status: IN PROGRESS
 [ ] Gate 4  Live run (A25, A27 confirmed live this task; A26 device/emulator
             run deferred to Task 11 — no device/emulator in this environment)
 
-Assertions: 27/27 PASS (A01-A24 unit/integration — including A08, A09, A24,
+Assertions: 26/27 PASS (A01-A24 unit/integration — including A08, A09, A24,
             which a review round found lacked genuine tests and were fixed;
             A25, A27 confirmed live). A26 pending (deferred, not faked).
 Regression: flutter test — 463/463 pass; flutter analyze — No issues found!
