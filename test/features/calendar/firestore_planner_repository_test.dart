@@ -151,6 +151,10 @@ void main() {
       expect(emitted.containsKey('2026-10-20'), isTrue);
       expect(emitted['2026-10-20'], isNotNull);
       expect(emitted['2026-10-20']!.occasion, '');
+      // Must be the entry that was actually written (outfitId: 3), not
+      // merely *some* present entry — proves the correct document was
+      // read back, not just any doc at that key.
+      expect(emitted['2026-10-20']!.outfitId, 3);
 
       // A key never written to Firestore at all must read back as
       // genuinely absent — not a present entry with zero/empty values.

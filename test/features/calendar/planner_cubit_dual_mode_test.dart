@@ -73,25 +73,28 @@ class _FailingPlannerRepository implements PlannerRepository {
       : _delegate.remove(key);
 }
 
-/// Repository double that delegates every call to a real
-/// [InMemoryPlannerRepository] except [plan] for one specific [failingKey],
-/// which rejects after [failDelay] — used to prove the targeted (per-key)
-/// rollback ruling: a concurrent `plan()` for a *different* key that
-/// resolves successfully while the failing key's write is still pending
-/// must survive the failing key's rollback untouched.
+/// Repository double whose [watchPlanned] deliberately never emits
+/// (`Stream.empty()`) — used to prove the targeted (per-key) rollback
+/// ruling without the confound of a delegate's own write-driven stream
+/// re-emit. By construction, the *only* thing that can ever change
+/// `PlannerCubit.state.planned` while this double backs it is (a) this
+/// Cubit's own optimistic `plan`/`remove` update, or (b) this Cubit's own
+/// targeted rollback on a repository-call failure — never a snapshot
+/// arriving from "the backend", because none ever does. [plan] for one
+/// specific [failingKey] rejects after [failDelay]; every other key (and
+/// [remove], for every key) resolves successfully with no side effect on
+/// the stream at all.
 class _KeySpecificFailingPlannerRepository implements PlannerRepository {
-  _KeySpecificFailingPlannerRepository(
-    this._delegate, {
+  _KeySpecificFailingPlannerRepository({
     required this.failingKey,
     required this.failDelay,
   });
 
-  final InMemoryPlannerRepository _delegate;
   final String failingKey;
   final Duration failDelay;
 
   @override
-  Stream<Map<String, PlannedEntry>> watchPlanned() => _delegate.watchPlanned();
+  Stream<Map<String, PlannedEntry>> watchPlanned() => const Stream.empty();
 
   @override
   Future<void> plan(String key, PlannedEntry entry) async {
@@ -99,11 +102,42 @@ class _KeySpecificFailingPlannerRepository implements PlannerRepository {
       await Future<void>.delayed(failDelay);
       throw Exception('write failed (offline)');
     }
-    return _delegate.plan(key, entry);
+    return Future<void>.value();
   }
 
   @override
-  Future<void> remove(String key) => _delegate.remove(key);
+  Future<void> remove(String key) => Future<void>.value();
+}
+
+/// Repository double whose [watchPlanned] never emits, [plan] always
+/// succeeds immediately, and [remove] for one specific [failingKey]
+/// rejects after [failDelay] (every other key's [remove] succeeds
+/// immediately) — used to prove the "only if still absent" rollback guard
+/// on [PlannerCubit.remove]: a `plan()` for the same key landing before
+/// the pending `remove()`'s rollback fires must never be clobbered by it.
+class _SlowFailingRemoveRepository implements PlannerRepository {
+  _SlowFailingRemoveRepository({
+    required this.failingKey,
+    required this.failDelay,
+  });
+
+  final String failingKey;
+  final Duration failDelay;
+
+  @override
+  Stream<Map<String, PlannedEntry>> watchPlanned() => const Stream.empty();
+
+  @override
+  Future<void> plan(String key, PlannedEntry entry) => Future<void>.value();
+
+  @override
+  Future<void> remove(String key) async {
+    if (key == failingKey) {
+      await Future<void>.delayed(failDelay);
+      throw Exception('write failed (offline)');
+    }
+    return Future<void>.value();
+  }
 }
 
 /// Repository double that fails the test if [plan]/[remove] is ever
@@ -277,35 +311,38 @@ void main() {
     'reverts only key A and never clobbers a concurrent plan(B) that '
     'succeeded in the meantime',
     () async {
-      final delegate = InMemoryPlannerRepository();
+      const failDelay = Duration(milliseconds: 40);
       final cubit = PlannerCubit(
         repository: _KeySpecificFailingPlannerRepository(
-          delegate,
           failingKey: '2026-10-20',
-          failDelay: const Duration(milliseconds: 40),
+          failDelay: failDelay,
         ),
       );
       addTearDown(cubit.close);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      // A: optimistic write that will fail after a delay.
+      // A: optimistic write that will fail after a delay. B: issued right
+      // after, and its repository call resolves (near-)immediately, but —
+      // unlike the prior version of this test — that resolution never
+      // touches the stream (the double's watchPlanned() never emits), so
+      // it cannot itself remove A from state via an unrelated re-emit.
       cubit.plan(
         '2026-10-20',
         const PlannedEntry(outfitId: 2, occasion: 'Casual'),
       );
-      // B: issued before A's write resolves, and succeeds quickly.
       cubit.plan(
         '2026-10-21',
         const PlannedEntry(outfitId: 3, occasion: 'Formal'),
       );
 
-      await _waitUntil(
-        () => cubit.state.planned.containsKey('2026-10-21'),
-      );
-      // B must have landed before A's rollback fires.
+      // Both optimistic updates land synchronously.
+      expect(cubit.state.planned['2026-10-20']!.outfitId, 2);
       expect(cubit.state.planned['2026-10-21']!.outfitId, 3);
 
-      // Wait for A's rollback to fire.
+      // Wait comfortably past failDelay so A's rollback has unambiguously
+      // already run by the time of the final assertion below — the only
+      // mechanism in this double that can ever remove '2026-10-20' from
+      // state.planned is that rollback, never a stream re-emit.
+      await Future<void>.delayed(failDelay * 3);
       await _waitUntil(
         () => !cubit.state.planned.containsKey('2026-10-20'),
       );
@@ -313,6 +350,50 @@ void main() {
       // B's entry must still be present — a full-map rollback of A's
       // failure would have wiped it out.
       expect(cubit.state.planned['2026-10-21']!.outfitId, 3);
+    },
+  );
+
+  test(
+    'F17_A14_targeted_revert a remove(A) rollback after a slower failing '
+    'call never overwrites a newer plan(A) for the same key that landed '
+    'before the rollback fires',
+    () async {
+      const key = '2026-10-15';
+      const failDelay = Duration(milliseconds: 40);
+      final cubit = PlannerCubit(
+        repository: _SlowFailingRemoveRepository(
+          failingKey: key,
+          failDelay: failDelay,
+        ),
+      );
+      addTearDown(cubit.close);
+
+      // Seed the key via a successful plan() first (this double's plan()
+      // always succeeds and never touches the stream).
+      cubit.plan(key, const PlannedEntry(outfitId: 1, occasion: 'Original'));
+      expect(cubit.state.planned.containsKey(key), isTrue);
+
+      // Optimistically remove key: the repository call will fail after
+      // failDelay, which (per the "only if still absent" guard) must NOT
+      // restore the old entry if a newer plan() for the same key has
+      // landed by then.
+      cubit.remove(key);
+      expect(cubit.state.planned.containsKey(key), isFalse);
+
+      // A newer plan() for the same key lands well before the pending
+      // remove()'s rollback fires.
+      cubit.plan(key, const PlannedEntry(outfitId: 9, occasion: 'NewPlan'));
+      expect(cubit.state.planned[key]!.outfitId, 9);
+
+      // Wait comfortably past failDelay so remove()'s rollback has
+      // unambiguously already run — the only mechanism that could change
+      // state.planned here (this double's watchPlanned() never emits) is
+      // that rollback.
+      await Future<void>.delayed(failDelay * 3);
+
+      // The rollback must not have overwritten the newer plan() entry.
+      expect(cubit.state.planned.containsKey(key), isTrue);
+      expect(cubit.state.planned[key]!.outfitId, 9);
     },
   );
 
