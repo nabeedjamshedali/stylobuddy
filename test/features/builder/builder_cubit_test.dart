@@ -3,7 +3,7 @@ import 'package:stylobuddy/features/builder/cubit/builder_cubit.dart';
 import 'package:stylobuddy/features/builder/models/builder_save_result.dart';
 import 'package:stylobuddy/features/saved/cubit/outfits_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
-import 'package:stylobuddy/features/wardrobe/repository/wardrobe_repository.dart';
+import 'package:stylobuddy/features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 
 void main() {
   late WardrobeCubit wardrobe;
@@ -13,7 +13,7 @@ void main() {
 
   setUp(() {
     clockValue = 5000;
-    wardrobe = WardrobeCubit(WardrobeRepository());
+    wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
     outfits = OutfitsCubit(wardrobe, clock: () => clockValue++);
     cubit = BuilderCubit(outfits);
   });

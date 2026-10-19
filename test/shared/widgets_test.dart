@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
-import 'package:stylobuddy/features/wardrobe/repository/wardrobe_repository.dart';
+import 'package:stylobuddy/features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 import 'package:stylobuddy/shared/widgets/app_modal.dart';
 import 'package:stylobuddy/shared/widgets/app_toast.dart';
 import 'package:stylobuddy/shared/widgets/item_tile_grid.dart';
@@ -161,7 +161,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       BlocProvider(
-        create: (_) => WardrobeCubit(WardrobeRepository()),
+        create: (_) => WardrobeCubit(InMemoryWardrobeRepository()),
         child: MaterialApp(
           home: Scaffold(
             body: ItemTileGrid(
@@ -182,7 +182,7 @@ void main() {
   testWidgets('ItemTileGrid hides lock when showLock is false', (tester) async {
     await tester.pumpWidget(
       BlocProvider(
-        create: (_) => WardrobeCubit(WardrobeRepository()),
+        create: (_) => WardrobeCubit(InMemoryWardrobeRepository()),
         child: MaterialApp(
           home: Scaffold(
             body: ItemTileGrid(

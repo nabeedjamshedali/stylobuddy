@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stylobuddy/features/saved/cubit/outfits_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
-import 'package:stylobuddy/features/wardrobe/repository/wardrobe_repository.dart';
+import 'package:stylobuddy/features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 import 'package:stylobuddy/shared/models/outfit.dart';
 
 void main() {
@@ -10,7 +10,7 @@ void main() {
   var now = 1000;
   setUp(() {
     now = 1000;
-    wardrobe = WardrobeCubit(WardrobeRepository());
+    wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
     cubit = OutfitsCubit(wardrobe, clock: () => now);
   });
   tearDown(() {

@@ -1,14 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stylobuddy/features/stylist/cubit/stylist_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
-import 'package:stylobuddy/features/wardrobe/repository/wardrobe_repository.dart';
+import 'package:stylobuddy/features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 
 void main() {
   late WardrobeCubit wardrobe;
   late StylistCubit cubit;
 
   setUp(() {
-    wardrobe = WardrobeCubit(WardrobeRepository());
+    wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
     cubit = StylistCubit(wardrobe);
   });
 

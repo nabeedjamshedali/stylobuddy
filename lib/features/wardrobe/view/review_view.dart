@@ -45,14 +45,15 @@ class _ReviewViewState extends State<ReviewView> {
     _initializedForIndex = index;
   }
 
-  void _confirm(BuildContext context, ImportCubit cubit) {
-    final error = cubit.confirmCurrent(
+  void _confirm(BuildContext context, ImportCubit cubit) async {
+    final error = await cubit.confirmCurrent(
       name: _nameController!.text,
       category: _category!,
       color: _color!,
       occasion: _occasion!,
       season: _season!,
     );
+    if (!context.mounted) return;
     if (error != null) {
       AppToast.show(context, error);
       return;

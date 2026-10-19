@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
-import 'package:stylobuddy/features/wardrobe/repository/wardrobe_repository.dart';
+import 'package:stylobuddy/features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 
 void main() {
   late WardrobeCubit cubit;
-  setUp(() => cubit = WardrobeCubit(WardrobeRepository()));
+  setUp(() => cubit = WardrobeCubit(InMemoryWardrobeRepository()));
   tearDown(() => cubit.close());
 
   test('seed has 23 items with wears i % 5', () {

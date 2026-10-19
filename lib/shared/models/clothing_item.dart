@@ -8,6 +8,7 @@ class ClothingItem {
     this.season = 'All season',
     this.wears = 0,
     this.sourceId,
+    this.imageUrl,
   });
 
   final String id;
@@ -21,6 +22,13 @@ class ClothingItem {
   /// Id of the seed garment whose artwork this item reuses (imported items).
   final String? sourceId;
 
+  /// Supabase Storage URL for a real uploaded photo (F15), set only when
+  /// the user attached one. `null`/missing and `''` (empty string) are both
+  /// treated as "no photo" — only a non-empty string counts as set
+  /// (F15-A15/A16). `GarmentImage` does not consume this yet (persist-only
+  /// this task; see F15 §13).
+  final String? imageUrl;
+
   String get imageId => sourceId ?? id;
 
   ClothingItem copyWith({
@@ -31,6 +39,7 @@ class ClothingItem {
     String? season,
     int? wears,
     String? sourceId,
+    String? imageUrl,
   }) {
     return ClothingItem(
       id: id,
@@ -41,6 +50,7 @@ class ClothingItem {
       season: season ?? this.season,
       wears: wears ?? this.wears,
       sourceId: sourceId ?? this.sourceId,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }

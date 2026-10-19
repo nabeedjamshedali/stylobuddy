@@ -17,6 +17,10 @@ ClothingItem                                   # WardrobeState{List<ClothingItem
     season: String = 'All season'
     wears: int = 0                             # times worn; never negative
     sourceId: String | None                    # image source for imported items
+    imageUrl: String | None                    # F15: Supabase Storage URL of a real uploaded photo;
+                                                # missing/null/'' are all "no photo" — only a non-empty
+                                                # string counts as set. GarmentImage does not render this
+                                                # yet (persist-only, F15 §13) — falls back to sourceId/id.
     imageId (getter) = sourceId ?? id
 
 Outfit                                         # OutfitsState{List<Outfit> outfits, List<WearEvent> wearLog}
@@ -79,6 +83,7 @@ Seed (`SeedData`): 23 items (`wears = index % 5`), 2 outfits (`Everyday Essentia
 |-------|---------|--------------|
 | Item id in wardrobe | placeholder from `itemOrFallback` (category `Shirts`, color `Unknown`) | wardrobe with 0 items -> empty states (e.g. "Insights start with your wardrobe") |
 | `ClothingItem.season` | n/a (default 'All season') | — |
+| `ClothingItem.imageUrl` | missing field or explicit `null` -> falls back to `sourceId`/`imageId` bundled art (F15-A15) | `''` (empty string) -> also falls back, never treated as a usable URL (F15-A16); only a non-empty string counts as "has a photo" |
 | `ProfileState.name` | Home greets `Hi, there`; avatar initial `A` | non-empty by validation (blank rejected) |
 | `Outfit` referenced by id | "This outfit is no longer saved." / "Original outfit was removed" | zero outfits -> "Your looks start here" |
 | Trip destination | falls back to trip type in subtitles | — |

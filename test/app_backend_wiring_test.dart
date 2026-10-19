@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,7 +38,11 @@ Future<BuildContext> _pumpApp(
   Stream<String?> uidStream,
 ) async {
   await tester.pumpWidget(
-    StyloBuddyApp(router: createAppRouter(), uidStream: uidStream),
+    StyloBuddyApp(
+      firestoreOverride: FakeFirebaseFirestore(),
+      router: createAppRouter(),
+      uidStream: uidStream,
+    ),
   );
   await tester.pumpAndSettle();
   return tester.element(find.byType(MaterialApp));
@@ -101,7 +106,12 @@ void main() {
       // Deliberately no `router:` override here: this regression is about
       // the *default* (no-override) production wiring in app.dart, where a
       // shared/singleton router previously survived a uid-keyed rebuild.
-      await tester.pumpWidget(StyloBuddyApp(uidStream: controller.stream));
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: FakeFirebaseFirestore(),
+          uidStream: controller.stream,
+        ),
+      );
       await tester.pumpAndSettle();
 
       final context = tester.element(find.byType(WelcomeView));
@@ -215,7 +225,12 @@ void main() {
       // brand-new router it builds on a uid change, mirroring what happens
       // when AuthView's own `context.go(AppRoutes.home)` races the
       // uid-change-triggered router rebuild during a real Google sign-in.
-      await tester.pumpWidget(StyloBuddyApp(uidStream: controller.stream));
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: FakeFirebaseFirestore(),
+          uidStream: controller.stream,
+        ),
+      );
       await tester.pumpAndSettle();
 
       final context = tester.element(find.byType(WelcomeView));
@@ -236,7 +251,12 @@ void main() {
     (tester) async {
       final controller = StreamController<String?>();
       addTearDown(controller.close);
-      await tester.pumpWidget(StyloBuddyApp(uidStream: controller.stream));
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: FakeFirebaseFirestore(),
+          uidStream: controller.stream,
+        ),
+      );
       await tester.pumpAndSettle();
 
       controller.add('uid-1');
@@ -261,7 +281,11 @@ void main() {
       addTearDown(controller.close);
 
       await tester.pumpWidget(
-        StyloBuddyApp(router: overrideRouter, uidStream: controller.stream),
+        StyloBuddyApp(
+          firestoreOverride: FakeFirebaseFirestore(),
+          router: overrideRouter,
+          uidStream: controller.stream,
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -321,7 +345,11 @@ void main() {
       // which only runs when app.dart builds its own router (see
       // `F14_A05_home_regression` above for the same reasoning).
       await tester.pumpWidget(
-        StyloBuddyApp(uidStream: controller.stream, initialUid: 'uid-1'),
+        StyloBuddyApp(
+          firestoreOverride: FakeFirebaseFirestore(),
+          uidStream: controller.stream,
+          initialUid: 'uid-1',
+        ),
       );
 
       expect(
@@ -345,7 +373,12 @@ void main() {
       // and it falls back to a signed-out-only stream (F14-A14) — the same
       // mechanism every other harness file in this suite that omits
       // `uidStream:` actually relies on.
-      await tester.pumpWidget(StyloBuddyApp(router: createAppRouter()));
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: FakeFirebaseFirestore(),
+          router: createAppRouter(),
+        ),
+      );
       await tester.pumpAndSettle();
 
       final context = tester.element(find.byType(MaterialApp));

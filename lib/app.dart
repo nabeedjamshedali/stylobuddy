@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -15,8 +16,10 @@ import 'features/stylist/cubit/stylist_cubit.dart';
 import 'features/wardrobe/cubit/import_cubit.dart';
 import 'features/wardrobe/cubit/wardrobe_browse_cubit.dart';
 import 'features/wardrobe/cubit/wardrobe_cubit.dart';
-import 'features/wardrobe/repository/wardrobe_repository.dart';
+import 'features/wardrobe/repository/firestore_wardrobe_repository.dart';
+import 'features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 import 'shared/backend/auth_session.dart';
+import 'shared/backend/firestore_service.dart';
 
 class StyloBuddyApp extends StatefulWidget {
   const StyloBuddyApp({
@@ -24,6 +27,7 @@ class StyloBuddyApp extends StatefulWidget {
     this.router,
     this.uidStream,
     this.initialUid,
+    this.firestoreOverride,
   });
 
   /// Override for tests; when omitted a brand-new [GoRouter] is built (via
@@ -54,6 +58,18 @@ class StyloBuddyApp extends StatefulWidget {
   /// `F14_initialData_first_frame` in `test/app_backend_wiring_test.dart` —
   /// without touching `FirebaseAuth.instance`.
   final String? initialUid;
+
+  /// Test-only seam (Task 2, F15): overrides the [FirebaseFirestore]
+  /// instance a signed-in uid-keyed subtree's Firestore-backed
+  /// repositories are built with (e.g. `FirestoreWardrobeRepository`).
+  /// Never set by production code, which always relies on the real
+  /// `FirebaseFirestore.instance`. Needed because the uid-stream test seam
+  /// above lets a widget test simulate a signed-in uid (e.g. `'uid-1'')
+  /// without ever calling `Firebase.initializeApp()` — without this
+  /// override, constructing a real `FirestoreService()` for that uid would
+  /// throw `[core/no-app]` the moment any Firestore-backed repository is
+  /// touched. A test instead passes a `FakeFirebaseFirestore()` here.
+  final FirebaseFirestore? firestoreOverride;
 
   @override
   State<StyloBuddyApp> createState() => _StyloBuddyAppState();
@@ -116,15 +132,21 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
         return MultiBlocProvider(
           key: ValueKey(snapshot.data),
           providers: [
-            // Today (Task 1 of the backend-wiring plan): only
-            // `WardrobeRepository` exists and it is single-in-memory —
-            // no Firestore-backed repository has landed for any feature
-            // yet, so every root Cubit below still only has its current
-            // in-memory construction in both the guest and signed-in
-            // subtree. Tasks 2-7 each swap their own Cubit's construction
-            // to pick a real Firestore repository when `snapshot.data`
-            // (the uid) is non-null.
-            BlocProvider(create: (_) => WardrobeCubit(WardrobeRepository())),
+            // First real dual-mode swap (Task 2 of the backend-wiring
+            // plan, resolving F14 §13's open question): in-memory for a
+            // guest (`uid == null`), Firestore (scoped to that uid) for a
+            // signed-in user. Tasks 3-7 each do the same for their own
+            // Cubit's construction.
+            BlocProvider(
+              create: (_) => WardrobeCubit(
+                snapshot.data == null
+                    ? InMemoryWardrobeRepository()
+                    : FirestoreWardrobeRepository(
+                        FirestoreService(firestore: widget.firestoreOverride),
+                        snapshot.data!,
+                      ),
+              ),
+            ),
             BlocProvider(
               create: (context) => OutfitsCubit(context.read<WardrobeCubit>()),
             ),

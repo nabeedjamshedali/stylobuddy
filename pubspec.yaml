@@ -51,6 +51,10 @@ dependencies:
   firebase_remote_config: ^5.1.5
   google_sign_in: ^6.2.2
 
+  # Wardrobe photo import (F15)
+  image_picker: ^1.1.2
+  http: ^1.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

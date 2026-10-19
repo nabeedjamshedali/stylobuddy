@@ -1,3 +1,5 @@
+import 'package:image_picker/image_picker.dart';
+
 import '../../../shared/models/clothing_item.dart';
 
 class ImportState {
@@ -8,6 +10,8 @@ class ImportState {
     this.uploadIndex = 0,
     this.showOriginal = false,
     this.lastImportCount = 0,
+    this.pickedFiles = const {},
+    this.lastImportHadUploadFailure = false,
   });
 
   final String source;
@@ -19,6 +23,20 @@ class ImportState {
   /// Size of the batch that was most recently saved (prototype overwrites
   /// `S.importCount` with the draft count on save); drives `/add-confirm`.
   final int lastImportCount;
+
+  /// Real picked photos (F15), keyed by draft id. A draft with no entry
+  /// here uses the existing simulated/pool-art path (F06), kept unchanged
+  /// as the fallback — not every draft in a batch needs a picked file.
+  final Map<String, XFile> pickedFiles;
+
+  /// Set on the most recent save when at least one draft with a picked
+  /// file failed to upload (network, expired signed URL, Edge Function
+  /// down, missing/invalid token) — the save still proceeds with
+  /// `imageUrl: null` for that item (F15-A12/A13); this flag is the
+  /// distinguishable signal that a photo upload failed, as opposed to the
+  /// user simply not having picked a photo for that draft at all. Reset to
+  /// `false` at the start of every new batch ([makeDrafts]).
+  final bool lastImportHadUploadFailure;
 
   /// The draft currently under review, or null when there is nothing left
   /// (missing, not an empty draft).
@@ -34,6 +52,8 @@ class ImportState {
     int? uploadIndex,
     bool? showOriginal,
     int? lastImportCount,
+    Map<String, XFile>? pickedFiles,
+    bool? lastImportHadUploadFailure,
   }) => ImportState(
     source: source ?? this.source,
     count: count ?? this.count,
@@ -41,5 +61,8 @@ class ImportState {
     uploadIndex: uploadIndex ?? this.uploadIndex,
     showOriginal: showOriginal ?? this.showOriginal,
     lastImportCount: lastImportCount ?? this.lastImportCount,
+    pickedFiles: pickedFiles ?? this.pickedFiles,
+    lastImportHadUploadFailure:
+        lastImportHadUploadFailure ?? this.lastImportHadUploadFailure,
   );
 }

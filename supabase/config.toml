@@ -1,0 +1,12 @@
+# StyloBuddy Supabase project config (F15). project_id must match the
+# linked project ref so `supabase functions deploy` without an explicit
+# `--project-ref` still targets the right project.
+project_id = "dbaeaqyoyilxcuwplvuw"
+
+[functions.storage-upload-url]
+# This function receives a Firebase ID token (not a Supabase JWT) in its
+# Authorization header and verifies it itself (supabase/functions/_shared/
+# firebase-auth.ts) — Supabase's own gateway-level JWT verification must be
+# disabled for this function, or every request is rejected with
+# UNAUTHORIZED_ASYMMETRIC_JWT before this function's own code ever runs.
+verify_jwt = false
