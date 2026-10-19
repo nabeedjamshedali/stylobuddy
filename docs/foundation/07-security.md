@@ -20,7 +20,7 @@ Feature documents reference these roles rather than redefining them. No feature 
 
 ## 3. Data isolation
 
-Structurally guest-vs-authenticated as of F14: `uid == null` gets an in-memory-only subtree (D2 in `backend-architecture.md`), `uid != null` gets the authenticated subtree — no code path can mix the two in one Cubit instance (D3). Per-collection Firestore isolation (`request.auth.uid == uid` on every `users/{uid}/...` document, already the shape of the live `firestore.rules`) is hardened with field-level rules in Task 9; Supabase `user-photos/{uid}/...` per-uid policies land with Task 2. Isolation assertions are added with each integration feature document.
+Structurally guest-vs-authenticated as of F14: `uid == null` gets an in-memory-only subtree (D2 in `backend-architecture.md`), `uid != null` gets the authenticated subtree — no code path can mix the two in one Cubit instance (D3) (identical in-memory construction until Tasks 2-7 land their own repositories). Per-collection Firestore isolation (`request.auth.uid == uid` on every `users/{uid}/...` document, already the shape of the live `firestore.rules`) is hardened with field-level rules in Task 9; Supabase `user-photos/{uid}/...` per-uid policies land with Task 2. Isolation assertions are added with each integration feature document.
 
 ## 4. Secrets
 

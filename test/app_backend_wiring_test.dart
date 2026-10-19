@@ -3,10 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:stylobuddy/app.dart';
 import 'package:stylobuddy/core/router/app_router.dart';
+import 'package:stylobuddy/core/router/app_routes.dart';
 import 'package:stylobuddy/features/builder/cubit/builder_cubit.dart';
+import 'package:stylobuddy/features/builder/view/manual_preview_view.dart';
 import 'package:stylobuddy/features/calendar/cubit/planner_cubit.dart';
+import 'package:stylobuddy/features/onboarding/view/welcome_view.dart';
 import 'package:stylobuddy/features/packing/cubit/packing_cubit.dart';
 import 'package:stylobuddy/features/profile/cubit/profile_cubit.dart';
 import 'package:stylobuddy/features/saved/cubit/outfits_cubit.dart';
@@ -74,6 +78,52 @@ void main() {
           reason: 'cubit at index $i was not reconstructed',
         );
       }
+      // Not just "a new instance exists" — the pre-transition instance must
+      // actually be torn down (.close()d), or a stale widget that cached a
+      // reference to it (see the F14_A05 regression test below) could call
+      // a dead Cubit and crash with "emit after close".
+      for (final cubit in before) {
+        expect(
+          (cubit as dynamic).isClosed,
+          isTrue,
+          reason: 'pre-transition cubit $cubit was not closed',
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'F14_A05_regression a uid transition tears down the whole navigation tree, not just the providers, so a route that cached a Cubit reference in initState is disposed rather than reparented',
+    (tester) async {
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      // Deliberately no `router:` override here: this regression is about
+      // the *default* (no-override) production wiring in app.dart, where a
+      // shared/singleton router previously survived a uid-keyed rebuild.
+      await tester.pumpWidget(StyloBuddyApp(uidStream: controller.stream));
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(WelcomeView));
+      GoRouter.of(context).go(AppRoutes.manualPreview);
+      await tester.pumpAndSettle();
+      expect(find.byType(ManualPreviewView), findsOneWidget);
+      final cachedCubit = tester
+          .element(find.byType(ManualPreviewView))
+          .read<BuilderCubit>();
+
+      controller.add('uid-1');
+      await tester.pumpAndSettle();
+
+      // The route whose State cached `cachedCubit` in initState must not
+      // survive the transition (reparented into the new tree) — the whole
+      // navigation stack is torn down and rebuilt at the fresh router's
+      // initial location together with the providers above it.
+      expect(
+        find.byType(ManualPreviewView),
+        findsNothing,
+        reason: 'a reparented (not disposed) route would still be found here',
+      );
+      expect(cachedCubit.isClosed, isTrue);
     },
   );
 
@@ -92,7 +142,10 @@ void main() {
       await tester.pumpAndSettle();
 
       final finalContext = tester.element(find.byType(MaterialApp));
-      expect(_idsOf(finalContext.read<WardrobeCubit>().state), initialWardrobeIds);
+      expect(
+        _idsOf(finalContext.read<WardrobeCubit>().state),
+        initialWardrobeIds,
+      );
       expect(finalContext.read<ProfileCubit>().state.name, initialProfileName);
     },
   );
@@ -159,17 +212,36 @@ void main() {
 
       controller.add('uid-1');
       await tester.pumpAndSettle();
-      final afterFirst = tester.element(
-        find.byType(MaterialApp),
-      ).read<WardrobeCubit>();
+      final afterFirst = tester
+          .element(find.byType(MaterialApp))
+          .read<WardrobeCubit>();
 
       controller.add('uid-1'); // duplicate consecutive value
       await tester.pumpAndSettle();
-      final afterDuplicate = tester.element(
-        find.byType(MaterialApp),
-      ).read<WardrobeCubit>();
+      final afterDuplicate = tester
+          .element(find.byType(MaterialApp))
+          .read<WardrobeCubit>();
 
       expect(identical(afterFirst, afterDuplicate), isTrue);
+    },
+  );
+
+  testWidgets(
+    'F14_A07 StyloBuddyApp with no uidStream override renders guest/SeedData state (relies on the synchronous guest-mode fallback in uidChanges(), not an injected fake stream)',
+    (tester) async {
+      // Deliberately no `uidStream:` override: this exercises the real
+      // `uidChanges()` default path. In this widget-test environment
+      // `Firebase.initializeApp()` is never called, so
+      // `FirebaseAuth.instance` throws synchronously inside `uidChanges()`
+      // and it falls back to a signed-out-only stream (F14-A14) — the same
+      // mechanism every other harness file in this suite that omits
+      // `uidStream:` actually relies on.
+      await tester.pumpWidget(StyloBuddyApp(router: createAppRouter()));
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(MaterialApp));
+      final seedIds = SeedData.items.map((i) => i.id).toList();
+      expect(_idsOf(context.read<WardrobeCubit>().state), seedIds);
     },
   );
 }

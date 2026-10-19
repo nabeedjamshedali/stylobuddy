@@ -90,8 +90,14 @@ Bootstrap transaction, in isolation (mechanism only, no real seed writer yet):
   -> transaction reads users/{uid}.seeded
   -> absent or false: writer() runs inside the same transaction, seeded set true
   -> true: writer() never runs
-  -> two callers racing the same uid: Firestore transaction retry guarantees
-     exactly one writer() execution
+  -> two callers racing the same uid: the commit happens at most once;
+     seedWriter may be invoked more than once on contention (real Firestore
+     retries the whole transaction handler, not just the commit, when it
+     loses a race) and must perform all its writes through the transaction
+     with no side effects outside it (no network calls, no writes via a
+     different client)
+  -> the device is offline: the transaction fails outright (no local-cache
+     write fallback); the caller (Task 5+) must handle that failure path
 ```
 
 ## 6. Interface surface
@@ -130,10 +136,14 @@ writer. No `firestore.rules` change (Task 9 owns that file).
 ## 9. Background work and events
 
 `runBootstrapIfNeeded` is the only "background work" this task introduces: a single Firestore
-transaction, run at most once per uid, retried by the Firestore SDK's own transaction-retry
-logic if it loses a race (no custom retry loop is written). No Cloud Function, no scheduled
-job, no event emission. Idempotency is structural (the `seeded` flag inside the transaction),
-not best-effort.
+transaction whose **commit** happens at most once per uid, guarded by the `seeded` flag read
+inside that same transaction. The Firestore SDK's own transaction-retry logic may re-run the
+whole transaction handler — including `seedWriter` — more than once if it loses a commit race
+(no custom retry loop is written here); only the commit is exactly-once, not the `seedWriter`
+invocation. No Cloud Function, no scheduled job, no event emission. Idempotency is structural
+(the `seeded` flag inside the transaction), not best-effort. A transaction fails outright while
+the device is offline, so a caller (Task 5+) must handle that failure path rather than assume
+`runBootstrapIfNeeded` always resolves.
 
 ## 10. Degradation and failure
 
@@ -188,10 +198,18 @@ F14-A21  [L]  Against the live Firestore project, calling runBootstrapIfNeeded f
 - Rapid sign-in/sign-out bouncing (e.g. a flaky network retry during auth): each distinct uid
   value still triggers exactly one full teardown/rebuild; `distinct()` only collapses
   *consecutive identical* values, not a legitimate `a -> null -> a` bounce.
-- A test that builds `StyloBuddyApp` without ever calling `Firebase.initializeApp` first: out
-  of scope for this task's unit/integration gates (they inject a fake `uidChanges()` stream,
-  never the real `FirebaseAuth` singleton); real Firebase initialization is exercised only at
-  the `[L]` gate.
+- A test that builds `StyloBuddyApp` without ever calling `Firebase.initializeApp` first: this
+  is the actual, common case across the suite (14+ call sites across `test/app_smoke_test.dart`,
+  `test/core/router_test.dart`, `test/features/home/home_screen_test.dart`,
+  `test/features/stylist/stylist_screens_test.dart`, and `test/features/support/f02_harness.dart`
+  pass only a `router:` override, no `uidStream:`). These do **not** inject a fake
+  `uidChanges()` stream; they rely on the synchronous guest-mode guard inside `uidChanges()`
+  itself — `FirebaseAuth.instance` throws synchronously because `Firebase.initializeApp` was
+  never called, `uidChanges()` catches that and returns a signed-out-only stream (F14-A14) — so
+  `StyloBuddyApp()` still renders guest/SeedData state with zero setup. A handful of other tests
+  (`test/app_backend_wiring_test.dart`'s F14-A04/A05/A06/A08/A09) *do* inject an explicit fake
+  `uidStream:` where the test needs to drive a sign-in/sign-out transition. Real Firebase
+  initialization against the live project is exercised only at the `[L]` gate.
 - `runBootstrapIfNeeded` called for a uid whose user doc doesn't exist at all yet (not even an
   empty doc): treated identically to a doc that exists with `seeded` missing — the transaction
   creates the doc as part of committing.
@@ -223,10 +241,12 @@ Status: IMPLEMENTED (gates 1-3 closed; gate 4 deferred to live-verification pass
 
 [x] Gate 1  Interface documented (§6, matches implementation exactly)
 [x] Gate 2  Unit      (A01-A04, A10-A19 + edge cases — test/shared/backend/)
-[x] Gate 3  Integration (A05-A09 widget tests — test/app_backend_wiring_test.dart;
-                          A07 guest-mode non-regression — full flutter test suite, 413/413 pass)
+[x] Gate 3  Integration (A05-A09 widget tests — test/app_backend_wiring_test.dart, plus a
+                          literal `F14_A07` widget test and an A05 navigation-teardown
+                          regression test added in the post-review fix round;
+                          A07 guest-mode non-regression — full flutter test suite, 418/418 pass)
 [ ] Gate 4  Live run   (A20, A21 — [L], deferred, not faked)
 
 Assertions: 19/19 [U]/[I] PASS (A20, A21 are [L], pending live-verification pass)
-Regression: flutter test (full suite) 413/413 pass; flutter analyze: No issues found!
+Regression: flutter test (full suite) 418/418 pass; flutter analyze: No issues found!
 ```

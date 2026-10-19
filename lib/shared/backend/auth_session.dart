@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
 /// Wraps [FirebaseAuth]'s auth-state stream into the single `uid` (or
 /// `null`) signal every root Cubit's construction is keyed on (architecture
@@ -32,7 +33,17 @@ Stream<String?> uidChanges({Stream<User?>? authStateChanges}) {
   } else {
     try {
       source = FirebaseAuth.instance.authStateChanges();
-    } catch (_) {
+    } catch (error) {
+      // Expected in a widget test that never calls Firebase.initializeApp
+      // (F14-A14) — `FirebaseAuth.instance` throws synchronously in that
+      // case. Any *other* synchronous failure here would be unexpected, so
+      // surface it in debug builds rather than silently falling back to
+      // guest mode with no trace of why.
+      if (kDebugMode) {
+        debugPrint(
+          'uidChanges(): FirebaseAuth.instance unavailable ($error); falling back to signed-out.',
+        );
+      }
       return Stream<String?>.value(null);
     }
   }
