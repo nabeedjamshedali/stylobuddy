@@ -103,19 +103,38 @@ class FirestoreService {
   /// A transaction fails outright while the device is offline (no local
   /// cache fallback for writes); callers (Task 5+) must handle that
   /// failure path themselves — this method does not retry or swallow it.
+  ///
+  /// [extraFields] (Task 5/F18, additive — `null` by default, so no
+  /// existing F14/F15/F16/F17 call site's behavior changes): a value
+  /// merged directly into the **same** final `tx.set(userDoc, ...,
+  /// SetOptions(merge: true))` call this method already issues to commit
+  /// `seeded: true`, rather than being written by [seedWriter] as a
+  /// *second*, separate `tx.set`/`tx.update` against `userDoc` itself.
+  /// This exists because `fake_cloud_firestore` (confirmed empirically
+  /// while building F18) does not merge a later `set(..., merge: true)`
+  /// call against an *earlier* `set` to the very same document within one
+  /// transaction — the later call's map silently replaces the earlier
+  /// one's fields entirely, rather than deep-merging on top of it. Every
+  /// prior task's [seedWriter] only ever wrote to a `users/{uid}`
+  /// *subcollection* document (a different document reference from
+  /// `userDoc` itself), so this never surfaced before; F18's
+  /// `FirestoreProfileRepository` is the first caller whose seed data
+  /// belongs directly on `userDoc`, which collides with this method's own
+  /// trailing `seeded: true` commit unless folded into the same write.
   Future<void> runBootstrapIfNeeded(
     String uid,
     Future<void> Function(
       Transaction tx,
       DocumentReference<Map<String, dynamic>> userDoc,
     )
-    seedWriter,
-  ) {
+    seedWriter, {
+    Map<String, dynamic> Function()? extraFields,
+  }) {
     final key = _lockKey(uid);
     final previous = _bootstrapLocks[key] ?? Future<void>.value();
     final gate = previous
         .catchError((_) {})
-        .then((_) => _runBootstrap(uid, seedWriter));
+        .then((_) => _runBootstrap(uid, seedWriter, extraFields));
     final stored = gate.catchError((_) {});
     _bootstrapLocks[key] = stored;
     // Prune once this attempt settles (success or failure) so a uid that
@@ -141,6 +160,7 @@ class FirestoreService {
       DocumentReference<Map<String, dynamic>> userDoc,
     )
     seedWriter,
+    Map<String, dynamic> Function()? extraFields,
   ) {
     final doc = userDoc(uid);
     return _firestore.runTransaction((tx) async {
@@ -148,7 +168,13 @@ class FirestoreService {
       final seeded = (snapshot.data()?['seeded'] as bool?) ?? false;
       if (seeded) return;
       await seedWriter(tx, doc);
-      tx.set(doc, {'seeded': true}, SetOptions(merge: true));
+      // extraFields is merged into this one write (see its doc comment on
+      // runBootstrapIfNeeded) rather than seedWriter issuing its own,
+      // second tx.set/update against the same userDoc.
+      tx.set(doc, {
+        ...?extraFields?.call(),
+        'seeded': true,
+      }, SetOptions(merge: true));
     });
   }
 }

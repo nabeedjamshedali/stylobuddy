@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +15,8 @@ import 'features/calendar/repository/firestore_planner_repository.dart';
 import 'features/calendar/repository/in_memory_planner_repository.dart';
 import 'features/packing/cubit/packing_cubit.dart';
 import 'features/profile/cubit/profile_cubit.dart';
+import 'features/profile/repository/firestore_profile_repository.dart';
+import 'features/profile/repository/in_memory_profile_repository.dart';
 import 'features/saved/cubit/outfits_cubit.dart';
 import 'features/saved/repository/firestore_outfits_repository.dart';
 import 'features/saved/repository/in_memory_outfits_repository.dart';
@@ -24,6 +29,7 @@ import 'features/wardrobe/repository/firestore_wardrobe_repository.dart';
 import 'features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 import 'shared/backend/auth_session.dart';
 import 'shared/backend/firestore_service.dart';
+import 'shared/backend/pending_onboarding_selections.dart';
 
 class StyloBuddyApp extends StatefulWidget {
   const StyloBuddyApp({
@@ -172,7 +178,43 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
                       ),
               ),
             ),
-            BlocProvider(create: (_) => ProfileCubit()),
+            BlocProvider(
+              create: (_) {
+                if (snapshot.data == null) {
+                  return ProfileCubit(
+                    repository: InMemoryProfileRepository(),
+                  );
+                }
+                final repository = FirestoreProfileRepository(
+                  FirestoreService(firestore: widget.firestoreOverride),
+                  snapshot.data!,
+                );
+                // Consume-and-clear the onboarding handoff holder exactly
+                // once per signed-in subtree construction (F18 Task 5) —
+                // folded into this uid's D5 bootstrap seed write. A
+                // returning/already-seeded uid's bootstrap is a no-op
+                // (F14's existing guard), so this is safe to call every
+                // time without re-seeding. Fire-and-forget with error
+                // handling (contract requirement) — the BlocProvider
+                // `create` callback cannot be async; `watchProfile()`'s
+                // live subscription below picks up the seeded document
+                // once the transaction commits.
+                final pendingOccasions = PendingOnboardingSelections.consume();
+                unawaited(
+                  repository
+                      .bootstrapIfNeeded(pendingOccasions: pendingOccasions)
+                      .catchError((Object error, StackTrace stackTrace) {
+                        if (kDebugMode) {
+                          debugPrint(
+                            'StyloBuddyApp: profile bootstrap failed: '
+                            '$error\n$stackTrace',
+                          );
+                        }
+                      }),
+                );
+                return ProfileCubit(repository: repository);
+              },
+            ),
             BlocProvider(
               create: (context) => StylistCubit(context.read<WardrobeCubit>()),
             ),

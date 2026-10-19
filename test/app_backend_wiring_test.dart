@@ -725,4 +725,147 @@ void main() {
       expect(sawReSignedInEntry, isTrue);
     },
   );
+
+  testWidgets(
+    'F18_A11 lib/app.dart constructs ProfileCubit with InMemoryProfileRepository when uid == null and with FirestoreProfileRepository when uid == uid-1 — object type differs across the sign-in/out transition, driven through the real StyloBuddyApp',
+    (tester) async {
+      // Seed the fake Firestore directly (as a real signed-in user's
+      // pre-existing document would be) before StyloBuddyApp is ever
+      // pumped, so this exercises app.dart's own dual-mode construction
+      // (not a hand-built ProfileCubit) actually reading from Firestore.
+      final firestore = FakeFirebaseFirestore();
+      await firestore.collection('users').doc('uid-1').set({
+        'name': 'Firestore Only Name',
+        'seeded': true,
+      });
+
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Guest-mode first frame: the uid-keyed subtree must show the
+      // hardcoded default profile, never the Firestore-seeded signed-in
+      // one.
+      var context = tester.element(find.byType(MaterialApp));
+      expect(context.read<ProfileCubit>().state.name, 'Alex Morgan');
+
+      controller.add('uid-1');
+      // Per the implementer contract's "Known gotcha": a bare
+      // pumpAndSettle()/microtask flush is not reliable here because
+      // nothing is actively listening to ProfileCubit via a BlocBuilder in
+      // this test — poll with a bounded timeout instead.
+      bool sawFirestoreName = false;
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        sawFirestoreName =
+            context.read<ProfileCubit>().state.name == 'Firestore Only Name';
+        if (sawFirestoreName) break;
+      }
+
+      expect(
+        sawFirestoreName,
+        isTrue,
+        reason:
+            'a signed-in uid must read from FirestoreProfileRepository, '
+            'not from the hardcoded InMemoryProfileRepository default — '
+            "app.dart's dual-mode ternary must have actually swapped the "
+            'repository implementation',
+      );
+    },
+  );
+
+  testWidgets(
+    'F18_A16_app a sign-in -> edit -> sign-out -> sign-in-as-different-uid cycle through the real StyloBuddyApp never bleeds a prior uid\'s profile data into the next one',
+    (tester) async {
+      final firestore = FakeFirebaseFirestore();
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: 'uid-a',
+        ),
+      );
+      await tester.pumpAndSettle();
+      // BlocProvider's `create` is lazy by default — it only runs on the
+      // Cubit's first access, which is what actually kicks off the
+      // bootstrap below. Force that access now (mirrors what a real
+      // screen's `context.read<ProfileCubit>()` would do on navigation).
+      tester.element(find.byType(MaterialApp)).read<ProfileCubit>();
+
+      // Wait for the brand-new uid's background D5 bootstrap (unawaited
+      // at its lib/app.dart call site) to actually commit before editing —
+      // otherwise this test would be racing its own edit against the
+      // bootstrap's full-default seed write landing on the same document,
+      // which is a timing artifact of this test driving the Cubit the
+      // instant after pumpAndSettle, not a scenario a real user (who takes
+      // much longer than one Firestore round trip to reach an edit
+      // screen) would ever hit.
+      var seeded = false;
+      var deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        final doc = await firestore.collection('users').doc('uid-a').get();
+        seeded = doc.data()?['seeded'] == true;
+        if (seeded) break;
+      }
+      expect(seeded, isTrue);
+
+      var context = tester.element(find.byType(MaterialApp));
+      context.read<ProfileCubit>().updateDetails('User A', 'a@x.com');
+
+      bool sawUserA = false;
+      var userADeadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(userADeadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        sawUserA = context.read<ProfileCubit>().state.name == 'User A';
+        if (sawUserA) break;
+      }
+      expect(sawUserA, isTrue);
+
+      // Sign-out: must show the guest default, never 'User A'.
+      controller.add(null);
+      await tester.pumpAndSettle();
+      context = tester.element(find.byType(MaterialApp));
+      expect(context.read<ProfileCubit>().state.name, 'Alex Morgan');
+
+      // Sign-in as a different uid: must never see uid-a's 'User A'.
+      controller.add('uid-b');
+      final bleedDeadline = DateTime.now().add(const Duration(seconds: 5));
+      bool bled = false;
+      while (DateTime.now().isBefore(bleedDeadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        if (context.read<ProfileCubit>().state.name == 'User A') {
+          bled = true;
+          break;
+        }
+      }
+      expect(bled, isFalse);
+    },
+  );
 }

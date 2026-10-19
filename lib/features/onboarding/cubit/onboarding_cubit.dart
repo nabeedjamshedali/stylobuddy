@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../shared/backend/pending_onboarding_selections.dart';
 import 'onboarding_state.dart';
 
 class OnboardingCubit extends Cubit<OnboardingState> {
@@ -31,12 +32,22 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   /// Called once the view has navigated for an exit signal.
   void clearExit() => emit(state.copyWith(exit: OnboardingExit.none));
 
-  void toggleOccasion(String name) => emit(
-    state.copyWith(chosenOccasions: _toggled(state.chosenOccasions, name)),
-  );
+  /// Also forwards the full, current set into [PendingOnboardingSelections]
+  /// on every toggle (F18 Task 5) — `OnboardingState` itself is torn down
+  /// the moment navigation leaves this feature's `ShellRoute` for `/auth`'s
+  /// separate one, so this is the only way the choice survives to the
+  /// moment sign-in succeeds.
+  void toggleOccasion(String name) {
+    final next = _toggled(state.chosenOccasions, name);
+    emit(state.copyWith(chosenOccasions: next));
+    PendingOnboardingSelections.setChosenOccasions(next);
+  }
 
-  void toggleChip(String name) =>
-      emit(state.copyWith(chosenChips: _toggled(state.chosenChips, name)));
+  void toggleChip(String name) {
+    final next = _toggled(state.chosenChips, name);
+    emit(state.copyWith(chosenChips: next));
+    PendingOnboardingSelections.setChosenChips(next);
+  }
 
   Set<String> _toggled(Set<String> set, String value) =>
       set.contains(value) ? ({...set}..remove(value)) : {...set, value};
