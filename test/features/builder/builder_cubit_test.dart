@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:stylobuddy/features/builder/cubit/builder_cubit.dart';
 import 'package:stylobuddy/features/builder/models/builder_save_result.dart';
 import 'package:stylobuddy/features/saved/cubit/outfits_cubit.dart';
-import 'package:stylobuddy/features/saved/repository/in_memory_outfits_repository.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 
@@ -15,11 +14,7 @@ void main() {
   setUp(() {
     clockValue = 5000;
     wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
-    outfits = OutfitsCubit(
-      wardrobe,
-      InMemoryOutfitsRepository(),
-      clock: () => clockValue++,
-    );
+    outfits = OutfitsCubit(wardrobe, clock: () => clockValue++);
     cubit = BuilderCubit(outfits);
   });
 
@@ -77,39 +72,43 @@ void main() {
     expect(created.name, 'Friday look');
     expect(created.items, ['white-shirt', 'navy-chinos']);
     expect(created.occasion, 'Office');
-    expect(created.why, 'A look you put together from your own wardrobe.');
+    expect(
+      created.why,
+      'A look you put together from your own wardrobe.',
+    );
     expect(cubit.state.picked, isEmpty);
     expect(cubit.state.editingId, isNull);
     expect(cubit.state.name, '');
   });
 
-  test('test_F07_A06_start_edit_loads_outfit_and_keeps_id_on_save', () {
-    cubit.start(editId: 2);
-    expect(cubit.state.editingId, 2);
-    expect(cubit.state.category, 'All');
-    expect(cubit.state.name, 'Modern Weekend');
-    expect(cubit.state.occasion, 'Casual');
-    expect(cubit.state.picked, [
-      'black-shirt',
-      'beige-chinos',
-      'brown-loafers',
-      'black-watch',
-    ]);
+  test(
+    'test_F07_A06_start_edit_loads_outfit_and_keeps_id_on_save',
+    () {
+      cubit.start(editId: 2);
+      expect(cubit.state.editingId, 2);
+      expect(cubit.state.category, 'All');
+      expect(cubit.state.name, 'Modern Weekend');
+      expect(cubit.state.occasion, 'Casual');
+      expect(
+        cubit.state.picked,
+        ['black-shirt', 'beige-chinos', 'brown-loafers', 'black-watch'],
+      );
 
-    cubit.setName('Updated Weekend');
-    cubit.setOccasion('Party');
-    cubit.remove('black-watch');
-    final before = outfits.state.outfits.length;
+      cubit.setName('Updated Weekend');
+      cubit.setOccasion('Party');
+      cubit.remove('black-watch');
+      final before = outfits.state.outfits.length;
 
-    final result = cubit.save();
+      final result = cubit.save();
 
-    expect(result.outfitId, 2);
-    expect(outfits.state.outfits.length, before);
-    final updated = outfits.byId(2)!;
-    expect(updated.name, 'Updated Weekend');
-    expect(updated.occasion, 'Party');
-    expect(updated.items, ['black-shirt', 'beige-chinos', 'brown-loafers']);
-  });
+      expect(result.outfitId, 2);
+      expect(outfits.state.outfits.length, before);
+      final updated = outfits.byId(2)!;
+      expect(updated.name, 'Updated Weekend');
+      expect(updated.occasion, 'Party');
+      expect(updated.items, ['black-shirt', 'beige-chinos', 'brown-loafers']);
+    },
+  );
 
   test('test_F07_A07_start_with_no_editId_clears_draft', () {
     cubit.start(editId: 2);

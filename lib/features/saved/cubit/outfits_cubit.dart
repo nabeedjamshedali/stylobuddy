@@ -12,7 +12,27 @@ import '../repository/outfits_repository.dart';
 import 'outfits_state.dart';
 
 class OutfitsCubit extends Cubit<OutfitsState> {
-  OutfitsCubit(this._wardrobe, this._repository, {int Function()? clock})
+  // [repository] defaults to a fresh InMemoryOutfitsRepository() (guest
+  // mode) so every pre-existing test/call site that only ever constructed
+  // this Cubit for guest mode needs no edit to keep compiling (review
+  // finding on Task 3: minimizes test churn from this task's constructor
+  // shape change). Dart does not allow mixing an optional-positional
+  // parameter with named parameters in one signature, and [clock] must
+  // stay named for the same no-edit reason, so [repository] is named too.
+  // The default is resolved once in this forwarding factory (never twice)
+  // so the same resolved instance backs both this Cubit's initial
+  // snapshot and its live watchOutfits()/watchWearEvents() subscription.
+  factory OutfitsCubit(
+    WardrobeCubit wardrobe, {
+    OutfitsRepository? repository,
+    int Function()? clock,
+  }) => OutfitsCubit._(
+    wardrobe,
+    repository ?? InMemoryOutfitsRepository(),
+    clock: clock,
+  );
+
+  OutfitsCubit._(this._wardrobe, this._repository, {int Function()? clock})
     : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
       super(
         OutfitsState(
@@ -220,11 +240,43 @@ class OutfitsCubit extends Cubit<OutfitsState> {
     unawaited(() async {
       try {
         await _repository.logWear(outfitId, outfit: outfit, event: event);
-        // The F15 cross-feature call contract (F16-A18): only called after
-        // the repository write resolves, never before, never skipped.
+      } catch (error, stackTrace) {
+        _logError('logWear repository write failed', error, stackTrace);
+        // Controller ruling (D6 "reconcile on failure"): a Firestore
+        // transaction either commits or never happens at all — it does
+        // not queue offline like set() does — so a failure here means
+        // nothing was ever persisted and no future watchOutfits()/
+        // watchWearEvents() snapshot will ever correct this optimistic
+        // update on its own. Roll the Cubit's own state back to its
+        // pre-call value as a best-effort local reconciliation, reading
+        // the *current* state (not a stale snapshot) so an unrelated
+        // concurrent update isn't clobbered.
+        emit(
+          state.copyWith(
+            outfits: [
+              for (final o in state.outfits)
+                o.id == outfitId ? o.copyWith(worn: outfit.worn) : o,
+            ],
+            wearLog: state.wearLog.where((e) => e.id != event.id).toList(),
+          ),
+        );
+        return;
+      }
+      try {
+        // The F15 cross-feature call contract (F16-A18): only called
+        // after the repository write resolves, never before, never
+        // skipped. This is a separate try/catch from the repository
+        // write above so a failure here is never misreported as a
+        // "logWear repository write failed" when the write itself
+        // already succeeded.
         _wardrobe.adjustWears(outfit.items, 1);
       } catch (error, stackTrace) {
-        _logError('logWear failed', error, stackTrace);
+        _logError(
+          'logWear: WardrobeCubit.adjustWears failed after a successful '
+          'repository write',
+          error,
+          stackTrace,
+        );
       }
     }());
   }
@@ -237,6 +289,9 @@ class OutfitsCubit extends Cubit<OutfitsState> {
     if (event == null) return;
     final capturedEvent = event;
     final outfitId = capturedEvent.outfitId;
+    // Captured before the optimistic update below, so a rollback can
+    // restore the exact pre-call value rather than re-deriving it.
+    final previousWorn = byId(outfitId)?.worn;
     emit(
       state.copyWith(
         outfits: [
@@ -251,10 +306,40 @@ class OutfitsCubit extends Cubit<OutfitsState> {
     unawaited(() async {
       try {
         await _repository.removeWear(eventId, event: capturedEvent);
-        // Same F15 cross-feature call contract as logWear (F16-A19).
+      } catch (error, stackTrace) {
+        _logError('removeWear repository write failed', error, stackTrace);
+        // Same controller ruling as logWear's catch block above: a
+        // transaction failure means nothing was ever persisted, so roll
+        // this Cubit's own state back to its pre-call value (worn
+        // restored, the event re-added) off the *current* state.
+        emit(
+          state.copyWith(
+            outfits: [
+              for (final o in state.outfits)
+                o.id == outfitId && previousWorn != null
+                    ? o.copyWith(worn: previousWorn)
+                    : o,
+            ],
+            wearLog: [
+              if (!state.wearLog.any((e) => e.id == capturedEvent.id))
+                capturedEvent,
+              ...state.wearLog,
+            ],
+          ),
+        );
+        return;
+      }
+      try {
+        // Same F15 cross-feature call contract as logWear (F16-A19),
+        // kept in its own try/catch for the same misattribution reason.
         _wardrobe.adjustWears(capturedEvent.items, -1);
       } catch (error, stackTrace) {
-        _logError('removeWear failed', error, stackTrace);
+        _logError(
+          'removeWear: WardrobeCubit.adjustWears failed after a successful '
+          'repository write',
+          error,
+          stackTrace,
+        );
       }
     }());
   }

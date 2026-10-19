@@ -78,6 +78,65 @@ class _ThrowingOutfitsRepository implements OutfitsRepository {
       Future<void>.error(Exception('boom'));
 }
 
+/// Repository double that delegates every method to a real
+/// [InMemoryOutfitsRepository] (so watchOutfits()/watchWearEvents() behave
+/// normally and the Cubit's initial snapshot isn't empty) except
+/// [logWear]/[removeWear], which always reject — used to prove the
+/// controller ruling (D6 "reconcile on failure"): on a logWear/removeWear
+/// transaction failure, OutfitsCubit must roll its own optimistic
+/// worn/wearLog change back to the pre-call value, not leave it stuck at
+/// the wrong optimistic value.
+class _FailingWearRepository implements OutfitsRepository {
+  _FailingWearRepository(
+    this._delegate, {
+    this.failLogWear = true,
+    this.failRemoveWear = true,
+  });
+
+  final InMemoryOutfitsRepository _delegate;
+  final bool failLogWear;
+  final bool failRemoveWear;
+
+  @override
+  Stream<List<Outfit>> watchOutfits() => _delegate.watchOutfits();
+
+  @override
+  Stream<List<WearEvent>> watchWearEvents() => _delegate.watchWearEvents();
+
+  @override
+  Future<Outfit> saveOrFind(Outfit draft, {required List<Outfit> current}) =>
+      _delegate.saveOrFind(draft, current: current);
+
+  @override
+  Future<Outfit> upsertManual({
+    required Outfit candidate,
+    int? editingId,
+    required List<Outfit> current,
+  }) => _delegate.upsertManual(
+    candidate: candidate,
+    editingId: editingId,
+    current: current,
+  );
+
+  @override
+  Future<void> delete(int id) => _delegate.delete(id);
+
+  @override
+  Future<void> logWear(
+    int outfitId, {
+    required Outfit outfit,
+    required WearEvent event,
+  }) => failLogWear
+      ? Future<void>.error(Exception('transaction failed (offline)'))
+      : _delegate.logWear(outfitId, outfit: outfit, event: event);
+
+  @override
+  Future<void> removeWear(int eventId, {required WearEvent event}) =>
+      failRemoveWear
+      ? Future<void>.error(Exception('transaction failed (offline)'))
+      : _delegate.removeWear(eventId, event: event);
+}
+
 void main() {
   test(
     'F16_A17 OutfitsCubit constructed with InMemoryOutfitsRepository vs FirestoreOutfitsRepository is a different object type, not just different data',
@@ -85,14 +144,14 @@ void main() {
       final guestWardrobe = WardrobeCubit(InMemoryWardrobeRepository());
       final guestCubit = OutfitsCubit(
         guestWardrobe,
-        InMemoryOutfitsRepository(),
+        repository: InMemoryOutfitsRepository(),
       );
 
       final firestore = FakeFirebaseFirestore();
       final signedInWardrobe = WardrobeCubit(InMemoryWardrobeRepository());
       final signedInCubit = OutfitsCubit(
         signedInWardrobe,
-        FirestoreOutfitsRepository(
+        repository: FirestoreOutfitsRepository(
           FirestoreService(firestore: firestore),
           'uid-1',
         ),
@@ -121,7 +180,7 @@ void main() {
       await repository.saveOrFind(SeedData.outfits.first, current: const []);
 
       final wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
-      final cubit = OutfitsCubit(wardrobe, repository);
+      final cubit = OutfitsCubit(wardrobe, repository: repository);
       addTearDown(cubit.close);
       addTearDown(wardrobe.close);
 
@@ -154,7 +213,7 @@ void main() {
       await repository.saveOrFind(SeedData.outfits.first, current: const []);
 
       final wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
-      final cubit = OutfitsCubit(wardrobe, repository);
+      final cubit = OutfitsCubit(wardrobe, repository: repository);
       addTearDown(cubit.close);
       addTearDown(wardrobe.close);
 
@@ -185,7 +244,7 @@ void main() {
         FirestoreService(firestore: firestore),
         'uid-1',
       );
-      final cubit1 = OutfitsCubit(wardrobe1, repository1);
+      final cubit1 = OutfitsCubit(wardrobe1, repository: repository1);
 
       final draft = SeedData.outfits.first.copyWith(id: 0);
       final saved = cubit1.saveOrFind(draft);
@@ -202,7 +261,7 @@ void main() {
       final guestWardrobe = WardrobeCubit(InMemoryWardrobeRepository());
       final guestCubit = OutfitsCubit(
         guestWardrobe,
-        InMemoryOutfitsRepository(),
+        repository: InMemoryOutfitsRepository(),
       );
       expect(guestCubit.state.outfits.any((o) => o.id == saved.id), isFalse);
       await guestCubit.close();
@@ -216,7 +275,7 @@ void main() {
         FirestoreService(firestore: firestore),
         'uid-1',
       );
-      final cubit2 = OutfitsCubit(wardrobe2, repository2);
+      final cubit2 = OutfitsCubit(wardrobe2, repository: repository2);
       addTearDown(cubit2.close);
       addTearDown(wardrobe2.close);
 
@@ -301,7 +360,10 @@ void main() {
     'F16_A22 a fire-and-forget write that fails inside OutfitsCubit does not surface as an unhandled Future error',
     () async {
       final wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
-      final cubit = OutfitsCubit(wardrobe, _ThrowingOutfitsRepository());
+      final cubit = OutfitsCubit(
+        wardrobe,
+        repository: _ThrowingOutfitsRepository(),
+      );
       addTearDown(cubit.close);
       addTearDown(wardrobe.close);
 
@@ -320,6 +382,74 @@ void main() {
       }, (error, stackTrace) => errors.add(error));
 
       expect(errors, isEmpty);
+    },
+  );
+
+  test(
+    'F16_rollback_logWear a logWear transaction failure rolls the Cubit\'s optimistic worn/wearLog change back to the pre-call value',
+    () async {
+      final wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
+      final cubit = OutfitsCubit(
+        wardrobe,
+        repository: _FailingWearRepository(InMemoryOutfitsRepository()),
+      );
+      addTearDown(cubit.close);
+      addTearDown(wardrobe.close);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final outfitId = cubit.state.outfits.first.id;
+      final wornBefore = cubit.byId(outfitId)!.worn;
+      final wearLogLengthBefore = cubit.state.wearLog.length;
+
+      cubit.logWear(outfitId);
+      // Immediately after the call, the optimistic update is visible
+      // (same as F16-A18's immediately-after-call assertion).
+      expect(cubit.byId(outfitId)!.worn, wornBefore + 1);
+      expect(cubit.state.wearLog.length, wearLogLengthBefore + 1);
+
+      // Once the rejected repository Future resolves, the ruling requires
+      // this to be rolled back to the pre-call value, not left stuck at
+      // the optimistic (now-wrong) value.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(cubit.byId(outfitId)!.worn, wornBefore);
+      expect(cubit.state.wearLog.length, wearLogLengthBefore);
+    },
+  );
+
+  test(
+    'F16_rollback_removeWear a removeWear transaction failure rolls the Cubit\'s optimistic worn/wearLog change back to the pre-call value',
+    () async {
+      final wardrobe = WardrobeCubit(InMemoryWardrobeRepository());
+      // logWear succeeds (so there's a real event to attempt to remove);
+      // only removeWear is made to fail.
+      final cubit = OutfitsCubit(
+        wardrobe,
+        repository: _FailingWearRepository(
+          InMemoryOutfitsRepository(),
+          failLogWear: false,
+          failRemoveWear: true,
+        ),
+      );
+      addTearDown(cubit.close);
+      addTearDown(wardrobe.close);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final outfitId = cubit.state.outfits.first.id;
+      cubit.logWear(outfitId);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final eventId = cubit.state.wearLog.first.id;
+
+      final wornBefore = cubit.byId(outfitId)!.worn;
+      final wearLogLengthBefore = cubit.state.wearLog.length;
+      expect(wearLogLengthBefore, greaterThan(0));
+
+      cubit.removeWear(eventId);
+      expect(cubit.byId(outfitId)!.worn, wornBefore - 1);
+      expect(cubit.state.wearLog.length, wearLogLengthBefore - 1);
+
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(cubit.byId(outfitId)!.worn, wornBefore);
+      expect(cubit.state.wearLog.length, wearLogLengthBefore);
+      expect(cubit.state.wearLog.any((e) => e.id == eventId), isTrue);
     },
   );
 }

@@ -152,7 +152,7 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
             BlocProvider(
               create: (context) => OutfitsCubit(
                 context.read<WardrobeCubit>(),
-                snapshot.data == null
+                repository: snapshot.data == null
                     ? InMemoryOutfitsRepository()
                     : FirestoreOutfitsRepository(
                         FirestoreService(firestore: widget.firestoreOverride),

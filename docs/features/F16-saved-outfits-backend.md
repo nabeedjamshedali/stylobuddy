@@ -435,9 +435,10 @@ Status: IMPLEMENTED (A23 [L] deferred to live-verification pass)
 [x] Gate 2  Unit                  — test/features/saved/firestore_outfits_repository_test.dart,
                                      test/features/saved/in_memory_outfits_repository_no_backend_test.dart
 [x] Gate 3  Integration            — test/features/saved/outfits_cubit_dual_mode_test.dart,
-                                     test/features/saved/outfits_cubit_test.dart,
-                                     test/features/saved/saved_screens_test.dart (F08_A23/A24 updated for
-                                     the async-ification, see F16 report)
+                                     test/features/saved/outfits_cubit_test.dart (unmodified from
+                                     pre-F16, see review-round note below),
+                                     test/features/saved/saved_screens_test.dart (unmodified from
+                                     pre-F16), test/app_backend_wiring_test.dart (F16_A17_app_wiring)
 [ ] Gate 4  Live run               — A23 [L] pending, not exercised this task
 
 Assertions: 22/23 PASS (A23 [L] deferred, pending live-verification pass per the agent harness contract)
@@ -447,15 +448,61 @@ F16-A22 note: OutfitsCubit does have unawaited fire-and-forget writes
 call via an unawaited async closure for UI-responsiveness, matching
 WardrobeCubit's F15 pattern) — every one has a try/catch that logs via
 `_logError` and never rethrows, so A22 is satisfied non-vacuously, not
-vacuously. See `lib/features/saved/cubit/outfits_cubit.dart`.
+vacuously. See `lib/features/saved/cubit/outfits_cubit.dart`. Coverage gap
+(review round, 2026-10-20): the only test actually asserting "no unhandled
+Future error" exercises `saveOrFind`'s failure path
+(`F16_A22` in `outfits_cubit_dual_mode_test.dart`); `upsertManual`/
+`delete`/`logWear`/`removeWear`'s equivalent paths are structurally
+identical (same `unawaited(() async { try {...} catch {...} })` shape,
+confirmed by inspection) but are not each individually exercised by a
+`runZonedGuarded` test — left as-is rather than adding four near-duplicate
+tests for the same structural pattern; flag for a future reviewer if that
+judgment should change.
 
-Regression: flutter test (full suite) — 490/490 passing, 0 failing.
-flutter analyze — "No issues found!". Two pre-existing widget tests
-(F08_A23, F08_A24 in test/features/saved/saved_screens_test.dart) needed a
-microtask-flush (`await tester.pump(Duration.zero)`) inserted between the
-async-ified logWear/removeWear call and the wardrobe-wears assertion that
-depends on it — no existing `expect(...)` line's content was changed, only
-when it runs; the same adjustment was made to
-test/features/saved/outfits_cubit_test.dart's one wardrobe-dependent test.
-See the F16 task report for the full before/after.
+F16-A21 note (review round, 2026-10-20): a literal "two genuinely
+concurrent logWear calls, worn ends at seed + 2" test against
+`fake_cloud_firestore` loses an update (lands on 1, not 2) because the fake
+has no retry-on-conflict model of real Firestore transactions — the same
+limitation F15 documented for `WardrobeRepository.adjustWears`
+(`test/features/wardrobe/firestore_wardrobe_repository_test.dart`).
+Implemented instead as a sequential-call test proving each call reads
+fresh server state (not a cached argument) plus a structural
+`runTransaction`-presence check, both in
+`test/features/saved/outfits_cubit_dual_mode_test.dart` (`F16_A21`,
+`F16_A21_structural`). Real Firestore's own transaction-retry semantics
+(not simulated by this fake) are what close this gap in production.
+
+F16-A20 note (review round, 2026-10-20): the cross-uid isolation check
+through `app.dart` itself (as opposed to hand-built Cubits, which
+`F16_A20` already covers) is deferred to Task 9's emulator pass, which
+owns that check per the backend-wiring plan.
+
+Review round (2026-10-20) fixes: `InMemoryOutfitsRepository`'s write
+methods now return `SynchronousFuture(...)` (not `async`) so guest-mode
+writes resolve inline with zero added latency — this made the
+microtask-flush edits to three pre-existing tests
+(`outfits_cubit_test.dart`'s wardrobe-wears test, `saved_screens_test.dart`'s
+F08_A23/A24) unnecessary; all three were reverted to their original
+pre-F16 form and still pass. `OutfitsCubit`'s repository parameter now
+defaults to `InMemoryOutfitsRepository()` (named, not positional — Dart
+disallows mixing optional-positional with named parameters in one
+signature, and `clock` had to stay named for the same no-edit reason), so
+`outfits_cubit_test.dart`/`builder_cubit_test.dart`'s original
+`OutfitsCubit(wardrobe, clock: ...)` call needs no edit at all.
+`watchOutfits()` now sorts newest-first by id descending (previously
+Firestore's native lexicographic-by-doc-id order), matching guest mode's
+always-newest-first ordering. `logWear`/`removeWear` now roll the Cubit's
+own optimistic `worn`/`wearLog` change back to its pre-call value on a
+repository transaction failure (controller ruling, D6 "reconcile on
+failure" — a Firestore transaction never queues offline the way `set()`
+does, so a failed transaction has no later snapshot to reconcile from).
+Added `test/app_backend_wiring_test.dart`'s `F16_A17_app_wiring`, which
+drives `StyloBuddyApp` itself (uidStream + firestoreOverride) rather than
+hand-building both Cubits, closing the gap where `app.dart`'s own
+uid-based ternary could have been inverted/hard-coded without any test
+catching it.
+
+Regression: flutter test (full suite) — see task report's fix-round
+section for the exact post-fix count; flutter analyze — "No issues
+found!".
 ```

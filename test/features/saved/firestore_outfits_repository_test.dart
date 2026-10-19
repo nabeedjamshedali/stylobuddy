@@ -382,6 +382,24 @@ void main() {
   );
 
   test(
+    'F16_sort_order watchOutfits() always emits newest-first by id descending, surviving a Firestore round-trip regardless of insertion order or doc-id lexicographic order',
+    () async {
+      // Doc ids are Outfit.id.toString() — intentionally saved in an
+      // order where lexicographic string order ('100' < '20' < '9999')
+      // disagrees with both insertion order and numeric id order, so a
+      // regression back to "no orderBy, Firestore's native doc-id order"
+      // would emit a visibly different (and non-newest-first) sequence
+      // than the one asserted below.
+      await repository.saveOrFind(makeOutfit(id: 20), current: const []);
+      await repository.saveOrFind(makeOutfit(id: 9999), current: const []);
+      await repository.saveOrFind(makeOutfit(id: 100), current: const []);
+
+      final emitted = await repository.watchOutfits().first;
+      expect(emitted.map((o) => o.id).toList(), [9999, 100, 20]);
+    },
+  );
+
+  test(
     'F16_A13 logWear against a non-existent outfitId is a silent no-op, not a crash',
     () async {
       await expectLater(

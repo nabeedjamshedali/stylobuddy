@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show SynchronousFuture, listEquals;
 
 import '../../../shared/data/seed_data.dart';
 import '../../../shared/models/outfit.dart';
@@ -58,17 +58,24 @@ class InMemoryOutfitsRepository implements OutfitsRepository {
   @override
   Stream<List<WearEvent>> watchWearEvents() => _wearEventsController.stream;
 
+  // Every write method below returns `SynchronousFuture` (per
+  // package:flutter/foundation.dart's own doc comment: "a Future that
+  // completes already-resolved") rather than being `async`, so
+  // `.then`/`await` against it resumes inline instead of on a later
+  // microtask. This keeps guest-mode writes exactly as fast as they were
+  // before OutfitsCubit started awaiting this repository's Future ahead of
+  // its WardrobeCubit.adjustWears cross-feature call (F16-A18/A19 require
+  // that call to land only after this Future resolves; an `async` method
+  // would add a guest-only microtask of latency with no behavioral
+  // benefit, since there is no real I/O to await here).
   @override
-  Future<Outfit> saveOrFind(
-    Outfit draft, {
-    required List<Outfit> current,
-  }) async {
+  Future<Outfit> saveOrFind(Outfit draft, {required List<Outfit> current}) {
     for (final o in _outfits) {
-      if (listEquals(o.items, draft.items)) return o;
+      if (listEquals(o.items, draft.items)) return SynchronousFuture(o);
     }
     _outfits.insert(0, draft);
     _emitOutfits();
-    return draft;
+    return SynchronousFuture(draft);
   }
 
   @override
@@ -76,24 +83,25 @@ class InMemoryOutfitsRepository implements OutfitsRepository {
     required Outfit candidate,
     int? editingId,
     required List<Outfit> current,
-  }) async {
+  }) {
     if (editingId != null) {
       final index = _outfits.indexWhere((o) => o.id == editingId);
       if (index != -1) {
         _outfits[index] = candidate;
         _emitOutfits();
-        return candidate;
+        return SynchronousFuture(candidate);
       }
     }
     _outfits.insert(0, candidate);
     _emitOutfits();
-    return candidate;
+    return SynchronousFuture(candidate);
   }
 
   @override
-  Future<void> delete(int id) async {
+  Future<void> delete(int id) {
     _outfits.removeWhere((o) => o.id == id);
     _emitOutfits();
+    return SynchronousFuture(null);
   }
 
   @override
@@ -101,9 +109,9 @@ class InMemoryOutfitsRepository implements OutfitsRepository {
     int outfitId, {
     required Outfit outfit,
     required WearEvent event,
-  }) async {
+  }) {
     final index = _outfits.indexWhere((o) => o.id == outfitId);
-    if (index == -1) return;
+    if (index == -1) return SynchronousFuture(null);
     final current = _outfits[index];
     _outfits[index] = current.copyWith(worn: current.worn + 1);
     _wearLog.insert(
@@ -119,12 +127,13 @@ class InMemoryOutfitsRepository implements OutfitsRepository {
     );
     _emitOutfits();
     _emitWearEvents();
+    return SynchronousFuture(null);
   }
 
   @override
-  Future<void> removeWear(int eventId, {required WearEvent event}) async {
+  Future<void> removeWear(int eventId, {required WearEvent event}) {
     final eventIndex = _wearLog.indexWhere((e) => e.id == eventId);
-    if (eventIndex == -1) return;
+    if (eventIndex == -1) return SynchronousFuture(null);
     final outfitId = _wearLog[eventIndex].outfitId;
     _wearLog.removeAt(eventIndex);
     final outfitIndex = _outfits.indexWhere((o) => o.id == outfitId);
@@ -136,5 +145,6 @@ class InMemoryOutfitsRepository implements OutfitsRepository {
     }
     _emitOutfits();
     _emitWearEvents();
+    return SynchronousFuture(null);
   }
 }

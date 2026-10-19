@@ -437,6 +437,90 @@ void main() {
   );
 
   testWidgets(
+    'F16_A17_app_wiring lib/app.dart constructs OutfitsCubit with FirestoreOutfitsRepository (not InMemoryOutfitsRepository/SeedData) once a uid is emitted, reflecting Firestore-seeded data rather than guest seed data — exercised through StyloBuddyApp itself, not a hand-built Cubit',
+    (tester) async {
+      // Builds both Cubits by hand (as outfits_cubit_dual_mode_test.dart's
+      // F16_A17 already does) cannot catch app.dart's own uid-based
+      // ternary being inverted or hard-coded — this test drives the real
+      // StyloBuddyApp widget tree instead (same harness shape as
+      // F15_A09 above).
+      final firestore = FakeFirebaseFirestore();
+      await firestore
+          .collection('users/uid-1/outfits')
+          .doc('firestore-only-outfit')
+          .set({
+            'id': 777,
+            'name': 'Firestore Only Outfit',
+            'occasion': 'Gala',
+            'why': 'Seeded directly in Firestore for this test.',
+            'items': ['black-shirt'],
+            'worn': 0,
+          });
+
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Guest-mode first frame: the uid-keyed subtree must show the
+      // signed-out seed outfits, never the Firestore-seeded one.
+      var context = tester.element(find.byType(MaterialApp));
+      expect(
+        context.read<OutfitsCubit>().state.outfits.any(
+          (o) => o.id == 777,
+        ),
+        isFalse,
+        reason: 'a guest OutfitsCubit must never see signed-in Firestore data',
+      );
+
+      controller.add('uid-1');
+      // Per the implementer contract's "Known gotcha": a bare
+      // pumpAndSettle()/microtask flush is not reliable here because
+      // nothing is actively listening to OutfitsCubit via a BlocBuilder in
+      // this test — poll with a bounded timeout instead.
+      bool sawFirestoreOutfit = false;
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        sawFirestoreOutfit = context.read<OutfitsCubit>().state.outfits.any(
+          (o) => o.id == 777,
+        );
+        if (sawFirestoreOutfit) break;
+      }
+
+      expect(
+        sawFirestoreOutfit,
+        isTrue,
+        reason:
+            'a signed-in uid must read from FirestoreOutfitsRepository, '
+            'not from SeedData — app.dart\'s dual-mode ternary must have '
+            'actually swapped the repository implementation',
+      );
+      final seedOutfitIds = SeedData.outfits.map((o) => o.id).toList();
+      expect(
+        context.read<OutfitsCubit>().state.outfits.any(
+          (o) => seedOutfitIds.contains(o.id),
+        ),
+        isFalse,
+        reason:
+            'a signed-in OutfitsCubit must never fall back to guest-mode '
+            'SeedData — only what Firestore actually has',
+      );
+    },
+  );
+
+  testWidgets(
     'F15_A24 a full sign-in -> draft -> sign-out -> sign-in-again cycle leaves no stale picked-file/draft state in the newly-constructed ImportCubit',
     (tester) async {
       final controller = StreamController<String?>();

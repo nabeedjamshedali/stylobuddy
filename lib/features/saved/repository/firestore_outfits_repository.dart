@@ -78,9 +78,17 @@ class FirestoreOutfitsRepository implements OutfitsRepository {
   };
 
   @override
-  Stream<List<Outfit>> watchOutfits() => _outfits.snapshots().map(
-    (snapshot) => snapshot.docs.map((doc) => doc.data()).toList(),
-  );
+  Stream<List<Outfit>> watchOutfits() => _outfits.snapshots().map((snapshot) {
+    final outfits = snapshot.docs.map((doc) => doc.data()).toList();
+    // Firestore returns docs in lexicographic-by-doc-id order with no
+    // orderBy applied, whereas guest mode (InMemoryOutfitsRepository) is
+    // always newest-first (a new/edited outfit is inserted at index 0).
+    // Sort by id descending here so both modes present outfits in the
+    // same order — Outfit.id is timestamp-derived (see
+    // OutfitsCubit._newId), so this is also newest-first.
+    outfits.sort((a, b) => b.id.compareTo(a.id));
+    return outfits;
+  });
 
   @override
   Stream<List<WearEvent>> watchWearEvents() =>

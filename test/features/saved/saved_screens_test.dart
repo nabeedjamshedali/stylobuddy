@@ -22,8 +22,9 @@ T cubitOf<T extends StateStreamableSource<Object?>>(WidgetTester tester) =>
 SavedViewCubit savedViewCubitOf(WidgetTester tester) =>
     tester.element(find.byType(SlSearchField)).read<SavedViewCubit>();
 
-String? _hintOf(WidgetTester tester) =>
-    tester.widget<SlSearchField>(find.byType(SlSearchField)).placeholder;
+String? _hintOf(WidgetTester tester) => tester
+    .widget<SlSearchField>(find.byType(SlSearchField))
+    .placeholder;
 
 void main() {
   testWidgets('F08_A01 saved renders the archive header and stats', (
@@ -60,7 +61,9 @@ void main() {
     expect(_hintOf(tester), 'Search wear history');
   });
 
-  testWidgets('F08_A03 switching tabs clears the search text', (tester) async {
+  testWidgets('F08_A03 switching tabs clears the search text', (
+    tester,
+  ) async {
     await pumpApp(tester, AppRoutes.saved);
     final view = savedViewCubitOf(tester);
     view.setSearch('weekend');
@@ -223,7 +226,9 @@ void main() {
     expect(pathOf(router), AppRoutes.stylist);
   });
 
-  testWidgets('F08_A11 saved-detail renders outfit 1 details', (tester) async {
+  testWidgets('F08_A11 saved-detail renders outfit 1 details', (
+    tester,
+  ) async {
     await pumpApp(tester, AppRoutes.savedDetail(1));
     expect(find.textContaining('THE STYLE NOTE'), findsOneWidget);
     for (final t in [
@@ -246,7 +251,9 @@ void main() {
     );
   });
 
-  testWidgets('F08_A12 style note is absent when why is empty', (tester) async {
+  testWidgets('F08_A12 style note is absent when why is empty', (
+    tester,
+  ) async {
     await pumpApp(tester, AppRoutes.saved);
     final outfits = cubitOf<OutfitsCubit>(tester);
     final created = outfits.upsertManual(
@@ -420,7 +427,9 @@ void main() {
     expect(pathOf(router), AppRoutes.saved);
   });
 
-  testWidgets('F08_A21 wear-detail renders the journal entry', (tester) async {
+  testWidgets('F08_A21 wear-detail renders the journal entry', (
+    tester,
+  ) async {
     await pumpApp(tester, AppRoutes.saved);
     final outfits = cubitOf<OutfitsCubit>(tester);
     outfits.logWear(1);
@@ -446,7 +455,10 @@ void main() {
     await pumpApp(tester, AppRoutes.saved);
     final outfits = cubitOf<OutfitsCubit>(tester);
     outfits.logWear(1);
-    await pumpApp(tester, AppRoutes.wearDetail(99999, outfitId: 1));
+    await pumpApp(
+      tester,
+      AppRoutes.wearDetail(99999, outfitId: 1),
+    );
     expect(find.text('Wear Journal'), findsOneWidget);
 
     await pumpApp(tester, AppRoutes.wearDetail(99999));
@@ -462,12 +474,6 @@ void main() {
     final wardrobe = cubitOf<WardrobeCubit>(tester);
     outfits.logWear(1);
     final eventId = outfits.state.wearLog.first.id;
-    // logWear's cross-feature call into WardrobeCubit.adjustWears happens
-    // after the (fire-and-forget) repository Future resolves, not
-    // synchronously inline (F16-A18) — flush the microtask queue before
-    // reading the "before" baseline so it reflects the already-applied +1,
-    // matching this test's original (pre-F16) assumption.
-    await tester.pump(Duration.zero);
     final before = wardrobe.itemOrFallback('white-shirt').wears;
 
     await pumpApp(tester, AppRoutes.wearDetail(eventId, outfitId: 1));
@@ -477,11 +483,6 @@ void main() {
     await tapText(tester, 'Remove entry');
     expect(find.text('Wear entry removed'), findsOneWidget);
     expect(outfits.byId(1)!.worn, 0);
-    // removeWear's cross-feature call into WardrobeCubit.adjustWears
-    // happens after the (fire-and-forget) repository Future resolves, not
-    // synchronously inline (F16-A19) — flush the microtask queue before
-    // asserting on it; this does not change what is asserted, only when.
-    await tester.pump(Duration.zero);
     expect(wardrobe.itemOrFallback('white-shirt').wears, before - 1);
     await drainToast(tester);
   });
@@ -545,7 +546,10 @@ void main() {
     final outfits = cubitOf<OutfitsCubit>(tester);
     outfits.logWear(1);
     final eventId = outfits.state.wearLog.first.id;
-    router = await pumpApp(tester, AppRoutes.wearDetail(eventId, outfitId: 1));
+    router = await pumpApp(
+      tester,
+      AppRoutes.wearDetail(eventId, outfitId: 1),
+    );
     await tester.tap(find.text('‹').first);
     await tester.pumpAndSettle();
     expect(pathOf(router), AppRoutes.saved);
