@@ -24,6 +24,7 @@ import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_state.dart';
 import 'package:stylobuddy/shared/data/seed_data.dart';
 import 'package:stylobuddy/shared/models/clothing_item.dart';
+import 'package:stylobuddy/shared/models/planned_entry.dart';
 
 /// `ClothingItem`/`WardrobeState` have no `==` override, so content checks
 /// compare ids rather than list/object identity.
@@ -578,6 +579,150 @@ void main() {
       final context = tester.element(find.byType(MaterialApp));
       final seedIds = SeedData.items.map((i) => i.id).toList();
       expect(_idsOf(context.read<WardrobeCubit>().state), seedIds);
+    },
+  );
+
+  testWidgets(
+    'F17_A11 lib/app.dart constructs PlannerCubit with InMemoryPlannerRepository when uid == null and with FirestorePlannerRepository when uid == uid-1 — object type differs across the sign-in/out transition, driven through the real StyloBuddyApp',
+    (tester) async {
+      // Seed the fake Firestore directly (as a real signed-in user's
+      // pre-existing document would be) before StyloBuddyApp is ever
+      // pumped, so this exercises app.dart's own dual-mode construction
+      // (not a hand-built PlannerCubit) actually reading from Firestore.
+      final firestore = FakeFirebaseFirestore();
+      await firestore
+          .collection('users/uid-1/plannedEntries')
+          .doc('2026-12-25')
+          .set({'outfitId': 777, 'occasion': 'Holiday'});
+
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Guest-mode first frame: the uid-keyed subtree must show the seed
+      // plan map, never the Firestore-seeded signed-in entry.
+      var context = tester.element(find.byType(MaterialApp));
+      expect(
+        context.read<PlannerCubit>().state.planned.containsKey(
+          '2026-12-25',
+        ),
+        isFalse,
+        reason: 'a guest PlannerCubit must never see signed-in Firestore '
+            'data',
+      );
+      expect(context.read<PlannerCubit>().state.planned, isNotEmpty);
+
+      controller.add('uid-1');
+      // Per the implementer contract's "Known gotcha": a bare
+      // pumpAndSettle()/microtask flush is not reliable here because
+      // nothing is actively listening to PlannerCubit via a BlocBuilder in
+      // this test — poll with a bounded timeout instead.
+      bool sawFirestoreEntry = false;
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        sawFirestoreEntry = context.read<PlannerCubit>().state.planned
+            .containsKey('2026-12-25');
+        if (sawFirestoreEntry) break;
+      }
+
+      expect(
+        sawFirestoreEntry,
+        isTrue,
+        reason:
+            'a signed-in uid must read from FirestorePlannerRepository, '
+            'not from SeedData — app.dart\'s dual-mode ternary must have '
+            'actually swapped the repository implementation',
+      );
+      final seedKeys = SeedData.planned.keys.toSet();
+      expect(
+        context.read<PlannerCubit>().state.planned.keys.any(
+          seedKeys.contains,
+        ),
+        isFalse,
+        reason:
+            'a signed-in PlannerCubit must never fall back to guest-mode '
+            'SeedData — only what Firestore actually has',
+      );
+    },
+  );
+
+  testWidgets(
+    'F17_A12 a full sign-in -> plan an entry -> sign-out -> sign-in-again cycle leaves the newly-constructed PlannerCubit showing only that uid\'s own Firestore plannedEntries on re-sign-in, and the in-memory seed data (not the signed-in user\'s plans, and not an empty map) on sign-out',
+    (tester) async {
+      final firestore = FakeFirebaseFirestore();
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: 'uid-1',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      var context = tester.element(find.byType(MaterialApp));
+      context.read<PlannerCubit>().plan(
+        '2026-12-25',
+        const PlannedEntry(outfitId: 5, occasion: 'Holiday'),
+      );
+
+      bool planned = false;
+      var deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        planned = context.read<PlannerCubit>().state.planned.containsKey(
+          '2026-12-25',
+        );
+        if (planned) break;
+      }
+      expect(planned, isTrue);
+
+      // Sign-out: the newly-constructed PlannerCubit must show the
+      // in-memory seed data — neither the signed-in user's plans nor an
+      // empty map.
+      controller.add(null);
+      await tester.pumpAndSettle();
+      context = tester.element(find.byType(MaterialApp));
+      final guestPlanned = context.read<PlannerCubit>().state.planned;
+      expect(guestPlanned.containsKey('2026-12-25'), isFalse);
+      expect(guestPlanned, isNotEmpty);
+      expect(guestPlanned, SeedData.planned);
+
+      // Sign-in-again as the same uid: must see that uid's own Firestore
+      // plannedEntries, re-subscribed from scratch, no bleed-through.
+      controller.add('uid-1');
+      bool sawReSignedInEntry = false;
+      deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        sawReSignedInEntry = context.read<PlannerCubit>().state.planned
+            .containsKey('2026-12-25');
+        if (sawReSignedInEntry) break;
+      }
+      expect(sawReSignedInEntry, isTrue);
     },
   );
 }
