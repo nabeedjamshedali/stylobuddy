@@ -10,6 +10,7 @@ import 'package:stylobuddy/core/router/app_routes.dart';
 import 'package:stylobuddy/features/builder/cubit/builder_cubit.dart';
 import 'package:stylobuddy/features/builder/view/manual_preview_view.dart';
 import 'package:stylobuddy/features/calendar/cubit/planner_cubit.dart';
+import 'package:stylobuddy/features/home/view/home_view.dart';
 import 'package:stylobuddy/features/onboarding/view/welcome_view.dart';
 import 'package:stylobuddy/features/packing/cubit/packing_cubit.dart';
 import 'package:stylobuddy/features/profile/cubit/profile_cubit.dart';
@@ -199,6 +200,81 @@ void main() {
           (i) => i.id == 'guest-only-item',
         ),
         isFalse,
+      );
+    },
+  );
+
+  testWidgets(
+    'F14_A05_home_regression a uid emitted while sitting on /auth lands the '
+    'fresh router on /home, not /welcome (real sign-in regression)',
+    (tester) async {
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      // Deliberately no `router:` override: this is about the production
+      // wiring in app.dart picking a uid-aware `initialLocation` for the
+      // brand-new router it builds on a uid change, mirroring what happens
+      // when AuthView's own `context.go(AppRoutes.home)` races the
+      // uid-change-triggered router rebuild during a real Google sign-in.
+      await tester.pumpWidget(StyloBuddyApp(uidStream: controller.stream));
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(WelcomeView));
+      GoRouter.of(context).go(AppRoutes.auth);
+      await tester.pumpAndSettle();
+
+      controller.add('uid-1');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomeView), findsOneWidget);
+      expect(find.byType(WelcomeView), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'F14_A06_signout_regression a uid going back to null still lands the '
+    'fresh router on /welcome',
+    (tester) async {
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(StyloBuddyApp(uidStream: controller.stream));
+      await tester.pumpAndSettle();
+
+      controller.add('uid-1');
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeView), findsOneWidget);
+
+      controller.add(null);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WelcomeView), findsOneWidget);
+      expect(find.byType(HomeView), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'F14_dispose_followup a router passed in via the router: test override is '
+    'never disposed by StyloBuddyApp when the subtree unmounts',
+    (tester) async {
+      final overrideRouter = createAppRouter();
+      addTearDown(overrideRouter.dispose);
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+
+      await tester.pumpWidget(
+        StyloBuddyApp(router: overrideRouter, uidStream: controller.stream),
+      );
+      await tester.pumpAndSettle();
+
+      // Unmount the whole StyloBuddyApp subtree.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+
+      // If `_RoutedMaterialAppState.dispose()` had (incorrectly) disposed
+      // this test-owned router, attaching a listener to its routerDelegate
+      // (a ChangeNotifier) would throw a "used after dispose" assertion.
+      expect(
+        () => overrideRouter.routerDelegate.addListener(() {}),
+        returnsNormally,
       );
     },
   );

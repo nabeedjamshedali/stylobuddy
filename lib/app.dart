@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/router/app_router.dart';
+import 'core/router/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/builder/cubit/builder_cubit.dart';
 import 'features/calendar/cubit/planner_cubit.dart';
@@ -23,6 +24,15 @@ class StyloBuddyApp extends StatefulWidget {
   /// Override for tests; when omitted a brand-new [GoRouter] is built (via
   /// [createAppRouter]) every time the uid-keyed subtree below is rebuilt —
   /// see [_StyloBuddyAppState.build] for why that matters.
+  ///
+  /// A test that passes this override opts out of that uid-aware
+  /// router-teardown behavior entirely: the same [GoRouter] instance is
+  /// reused across a uid flip (see `didUpdateWidget`/`_RoutedMaterialApp`
+  /// below), so such a test exercises nothing about whether a
+  /// sign-in/sign-out transition tears down the previous navigation stack.
+  /// Only a test that omits this parameter (letting `app.dart` build its
+  /// own router per uid) covers that behavior — see
+  /// `F14_A05_regression` in `test/app_backend_wiring_test.dart`.
   final GoRouter? router;
 
   /// Override for tests; defaults to the real [uidChanges]. Driving this
@@ -116,7 +126,7 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
           // (created once, in _RoutedMaterialApp's own initState) forces
           // go_router to tear down and rebuild its whole Navigator/page
           // stack together with the providers above it.
-          child: _RoutedMaterialApp(router: widget.router),
+          child: _RoutedMaterialApp(router: widget.router, uid: snapshot.data),
         );
       },
     );
@@ -129,9 +139,18 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
 /// where this is instantiated in [_StyloBuddyAppState.build] for why that
 /// placement (rather than building it inline in `build()`) is load-bearing.
 class _RoutedMaterialApp extends StatefulWidget {
-  const _RoutedMaterialApp({required this.router});
+  const _RoutedMaterialApp({required this.router, required this.uid});
 
   final GoRouter? router;
+
+  /// The uid this subtree was built for (`null` means guest). Only consulted
+  /// when `router` is null, to pick the freshly-built [GoRouter]'s
+  /// `initialLocation`: signed-in lands on [AppRoutes.home], guest lands on
+  /// [AppRoutes.welcome]. This widget is itself a child of the uid-keyed
+  /// `MultiBlocProvider` in [_StyloBuddyAppState.build], so it is only ever
+  /// constructed fresh (never updated in place) when the uid actually
+  /// changes — see the comment there for why that matters.
+  final String? uid;
 
   @override
   State<_RoutedMaterialApp> createState() => _RoutedMaterialAppState();
@@ -140,10 +159,24 @@ class _RoutedMaterialApp extends StatefulWidget {
 class _RoutedMaterialAppState extends State<_RoutedMaterialApp> {
   late GoRouter _router;
 
+  /// Whether `_router` was built by this widget (and so must be disposed by
+  /// it) rather than handed in via `widget.router` as a test override that
+  /// this widget doesn't own.
+  bool _ownsRouter = false;
+
   @override
   void initState() {
     super.initState();
-    _router = widget.router ?? createAppRouter();
+    if (widget.router != null) {
+      _router = widget.router!;
+    } else {
+      _router = createAppRouter(
+        initialLocation: widget.uid != null
+            ? AppRoutes.home
+            : AppRoutes.welcome,
+      );
+      _ownsRouter = true;
+    }
   }
 
   @override
@@ -156,7 +189,19 @@ class _RoutedMaterialAppState extends State<_RoutedMaterialApp> {
     // is always null there and this never fires.
     if (widget.router != null && widget.router != oldWidget.router) {
       _router = widget.router!;
+      _ownsRouter = false;
     }
+  }
+
+  @override
+  void dispose() {
+    // Only dispose a router this widget built itself — a test-injected
+    // `widget.router` override is owned by whoever constructed it, not by
+    // this widget.
+    if (_ownsRouter) {
+      _router.dispose();
+    }
+    super.dispose();
   }
 
   @override

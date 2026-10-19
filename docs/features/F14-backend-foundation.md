@@ -157,6 +157,14 @@ the device is offline, so a caller (Task 5+) must handle that failure path rathe
 - A sign-in/out transition always fully disposes the previous subtree before building the
   next one — never a partial rebuild that could leave one stale Cubit instance mixed with new
   ones (architecture D3's whole point).
+- `uidChanges()` seeds its first emission synchronously from
+  `FirebaseAuth.instance.currentUser?.uid` (when using the real instance, not an injected test
+  stream) ahead of `authStateChanges()`'s own first event, so a signed-in user's very first frame
+  already renders the signed-in subtree instead of flashing guest/SeedData state for one frame.
+  `app.dart`'s newly-built `GoRouter` on a uid change also picks its `initialLocation` from that
+  uid (`AppRoutes.home` when non-null, `AppRoutes.welcome` when null), so a fresh sign-in lands on
+  Home rather than racing `AuthView`'s own `context.go(AppRoutes.home)` against the default
+  `/welcome` initial location.
 - `runBootstrapIfNeeded`: if `seedWriter` throws inside the transaction, the transaction
   aborts and `seeded` is **not** set — a later retry (e.g. next app launch) gets a clean
   attempt, never a half-seeded user permanently marked as seeded.

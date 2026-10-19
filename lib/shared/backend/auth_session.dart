@@ -28,11 +28,21 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 /// `FirebaseAuth.instance.authStateChanges()`.
 Stream<String?> uidChanges({Stream<User?>? authStateChanges}) {
   Stream<User?> source;
+  // Seeded synchronously (when using the real FirebaseAuth instance) from
+  // `currentUser` below, so a signed-in user's very first frame already
+  // reflects the signed-in subtree instead of flashing guest/SeedData state
+  // for one frame while `authStateChanges()`'s first event is still
+  // in-flight.
+  String? initialUid;
   if (authStateChanges != null) {
     source = authStateChanges;
   } else {
     try {
       source = FirebaseAuth.instance.authStateChanges();
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      initialUid = currentUid == null || currentUid.isEmpty
+          ? null
+          : currentUid;
     } catch (error) {
       // Expected in a widget test that never calls Firebase.initializeApp
       // (F14-A14) — `FirebaseAuth.instance` throws synchronously in that
@@ -54,6 +64,17 @@ Stream<String?> uidChanges({Stream<User?>? authStateChanges}) {
   void addUid(User? user) {
     final uid = user?.uid;
     controller.add(uid == null || uid.isEmpty ? null : uid);
+  }
+
+  // Seed the already-known current uid (if any) before the first
+  // `authStateChanges()` event arrives, so a `StreamBuilder` listening to
+  // this stream's first emission already reflects a signed-in user on its
+  // very first frame instead of flashing guest state for one frame. Queued
+  // on the controller ahead of the subscription below, so it is always
+  // delivered first; `distinct()` on the returned stream collapses it with
+  // an identical duplicate that `authStateChanges()` then emits.
+  if (initialUid != null) {
+    controller.add(initialUid);
   }
 
   subscription = source.listen(
