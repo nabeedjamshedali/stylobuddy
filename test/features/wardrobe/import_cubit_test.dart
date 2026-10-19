@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mocktail/mocktail.dart';
@@ -282,6 +284,56 @@ void main() {
       expect(wardrobe.state.items.length, before + 3);
       expect(cubit.state.drafts, isEmpty);
       expect(cubit.state.lastImportCount, 3);
+    },
+  );
+
+  test(
+    'F15_important4 calling confirmCurrent twice in quick succession (before the first await resolves) results in only one save',
+    () async {
+      cubit.setCount(1);
+      cubit.makeDrafts();
+      final draftId = cubit.state.current!.id;
+      final file = _FakeXFile();
+      when(() => picker.pickImage(source: any(named: 'source'))).thenAnswer(
+        (_) async => file,
+      );
+      await cubit.pickPhoto();
+      final uploadGate = Completer<String>();
+      when(
+        () => storage.uploadWardrobePhoto(itemId: draftId, file: file),
+      ).thenAnswer((_) => uploadGate.future);
+
+      // The first call is not awaited yet, so it is suspended mid-upload
+      // (inside the `await _storage.uploadWardrobePhoto(...)` call) when
+      // the second call starts — a real double-tap before the first save
+      // has landed.
+      final firstCall = cubit.confirmCurrent(
+        name: 'My Item',
+        category: 'Shirts',
+        color: 'White',
+        occasion: 'Everyday',
+        season: 'All season',
+      );
+      final secondCall = cubit.confirmCurrent(
+        name: 'My Item Again',
+        category: 'Shirts',
+        color: 'White',
+        occasion: 'Everyday',
+        season: 'All season',
+      );
+
+      uploadGate.complete('https://example.com/$draftId.jpg');
+      await Future.wait([firstCall, secondCall]);
+
+      verify(
+        () => storage.uploadWardrobePhoto(itemId: draftId, file: file),
+      ).called(1);
+      expect(
+        wardrobe.state.items.where((i) => i.id == draftId).length,
+        1,
+        reason: 'the second, re-entrant call must not duplicate the save',
+      );
+      expect(cubit.state.saving, isFalse);
     },
   );
 

@@ -38,14 +38,26 @@ void main() {
   );
 
   test(
-    'F15_A23 two concurrent WardrobeCubit constructions for the same brand-new uid never result in more than the bootstrap-seeded set of documents — the wardrobe path itself performs no writes',
+    'F15_A23 two WardrobeCubit constructions for the same brand-new uid, genuinely racing an in-flight bootstrap transaction (not sequenced after it settles), never result in more than the bootstrap-seeded set of documents',
     () async {
       final firestore = FakeFirebaseFirestore();
       final service = FirestoreService(firestore: firestore);
 
-      // Simulate the bootstrap seeding a fixed set exactly once, as the
-      // real runBootstrapIfNeeded caller would (not this task's code).
-      await service.runBootstrapIfNeeded('uid-new', (tx, userDoc) async {
+      // Deliberately not awaited before constructing the Cubits below: the
+      // bootstrap transaction's own `tx.get`/`tx.set` work is still
+      // in-flight (it has its own internal await inside
+      // `runBootstrapIfNeeded`) when `cubitA`/`cubitB` start listening,
+      // which is the genuine race this assertion is about — a prior
+      // version of this test fully `await`ed the bootstrap before
+      // constructing either Cubit, which meant nothing could actually
+      // race (flagged in review). Simulates the real app.dart timing: a
+      // reconnect re-triggering the uid-keyed StreamBuilder rebuild could
+      // construct a new WardrobeCubit while F14's bootstrap caller is
+      // still mid-transaction for that same uid.
+      final bootstrapFuture = service.runBootstrapIfNeeded('uid-new', (
+        tx,
+        userDoc,
+      ) async {
         tx.set(userDoc.collection('wardrobeItems').doc('seed-1'), {
           'id': 'seed-1',
           'name': 'Seed Item',
@@ -66,6 +78,7 @@ void main() {
       addTearDown(cubitA.close);
       addTearDown(cubitB.close);
 
+      await bootstrapFuture;
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       final raw = await firestore

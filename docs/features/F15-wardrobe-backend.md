@@ -59,8 +59,11 @@ this and sees exactly what the current `flutter test` suite already verifies
   `package:http`, returns the resulting URL.
 - `supabase/functions/storage-upload-url/index.ts`: real and deployed this
   task — verifies the caller's Firebase ID token, returns a signed upload
-  URL scoped to `{firebaseUid}/{itemId}.jpg`, expiring in 60 seconds (storage
-  doc §1).
+  URL scoped to `{firebaseUid}/{itemId}.jpg`. Storage doc §1 originally
+  named a 60-second expiry; as resolved in §13a below, Supabase's
+  `createSignedUploadUrl` API does not support a caller-supplied expiry for
+  upload URLs — the live function uses the service's own fixed window
+  (confirmed ~2 hours).
 - `supabase/functions/_shared/firebase-auth.ts`: `verifyFirebaseToken(req)` —
   JWT verification against Firebase's published JWKS (cached), written this
   task, reused unmodified by Task 10's `ai-stylist` stub.
@@ -125,7 +128,8 @@ Signed-in user adds an item with a real picked photo:
      confirmed
   -> for each draft with a picked file: uploadWardrobePhoto(itemId: draft.id,
      file: xfile) -> storage-upload-url Edge Function verifies the caller's
-     Firebase ID token -> signed URL (60s expiry) -> Flutter PUTs the bytes
+     Firebase ID token -> signed URL (~2 hour expiry, Supabase's fixed
+     window for upload URLs — see §13a) -> Flutter PUTs the bytes
      directly to that URL -> uploadWardrobePhoto resolves with the final URL
   -> the draft's ClothingItem is saved with imageUrl set to that URL via
      FirestoreWardrobeRepository.addItem/addItems
@@ -146,7 +150,8 @@ Edge Function down, or missing/invalid Firebase token mid-flow):
 Edge Function, storage-upload-url, called directly:
   request with a valid Firebase ID token -> verifyFirebaseToken succeeds
   -> service-role createSignedUploadUrl() scoped to
-     {firebaseUid}/{itemId}.jpg -> 200 with the signed URL, 60s expiry
+     {firebaseUid}/{itemId}.jpg -> 200 with the signed URL, Supabase's fixed
+     ~2 hour upload-URL expiry (see §13a — not a caller-configurable 60s)
   request with a missing or invalid/expired token -> verifyFirebaseToken
   fails -> 401, no signed URL ever generated
 
@@ -248,9 +253,11 @@ describes.
 - `storage-upload-url` called with a missing or invalid/expired Firebase ID
   token returns `401` and issues no signed URL — never a silently-scoped
   URL for an unverified caller.
-- A signed URL's 60-second expiry lapsing before the client `PUT`s (slow
-  network): the `PUT` fails, treated identically to any other upload
-  failure — `imageUrl: null`, save proceeds, toast surfaced.
+- A signed URL's expiry (Supabase's fixed ~2 hour window for upload URLs,
+  not the originally-planned caller-configurable 60 seconds — see §13a)
+  lapsing before the client `PUT`s (extremely slow network): the `PUT`
+  fails, treated identically to any other upload failure — `imageUrl: null`,
+  save proceeds, toast surfaced.
 - Guest mode (`InMemoryWardrobeRepository`) makes zero Firestore or Supabase
   calls — structurally, not "falls back after a failed call," the same
   guarantee F14 established for the shared infra layer.
@@ -291,7 +298,7 @@ F15-A13  [U]  F15-A12's failure path surfaces a distinguishable error/toast sign
 F15-A14  [U]  Two consecutive imports in the same signed-in session, one with a picked-file upload and one without, produce items with distinct ids and each item's imageUrl set/null exactly per its own draft — no cross-contamination between drafts in the same batch
 F15-A15  [U]  An item whose Firestore document has no imageUrl field at all, and one with imageUrl: null explicitly stored, both resolve to the same bundled-art fallback outcome when read back into a ClothingItem (missing vs. explicit-null are not distinguished)
 F15-A16  [U]  An item whose imageUrl is stored as '' (empty string) does not resolve as a usable photo URL — treated the same as null/missing, not passed through as if it were a real link (missing/empty/set-to-a-real-url are three distinct cases and only the third counts as "has a photo")
-F15-A17  [U]  storage-upload-url: a request with a valid, well-formed Firebase ID token in the Authorization header returns 200 with a signed URL whose path is exactly {uid-from-token}/{itemId}.jpg and an expiry of 60 seconds
+F15-A17  [U]  storage-upload-url: a request with a valid, well-formed Firebase ID token in the Authorization header returns 200 with a signed URL whose path is exactly {uid-from-token}/{itemId}.jpg; the unit test asserts this wrapper's own call shape (not a caller-supplied 60-second expiry, which Supabase's upload-URL API does not support — see §13a: the live service uses its own fixed ~2 hour window)
 F15-A18  [U]  storage-upload-url: a request with a missing Authorization header returns 401 and generates no signed URL
 F15-A19  [U]  storage-upload-url: a request with a malformed or expired Firebase ID token returns 401 and generates no signed URL
 F15-A20  [U]  storage-upload-url: the signed URL's path is derived only from the token's own uid — a request cannot specify a different uid than the one encoded in its own valid token (the itemId is caller-supplied; the uid segment is never caller-supplied)
@@ -449,7 +456,10 @@ Status: IN PROGRESS
 [ ] Gate 4  Live run (A25, A27 confirmed live this task; A26 device/emulator
             run deferred to Task 11 — no device/emulator in this environment)
 
-Assertions: 26/27 PASS (A01-A24 unit/integration; A25, A27 confirmed live).
-            A26 pending (deferred, not faked).
-Regression: flutter test — 453/453 pass; flutter analyze — No issues found!
+Assertions: 27/27 PASS (A01-A24 unit/integration — including A08, A09, A24,
+            which a review round found lacked genuine tests and were fixed;
+            A25, A27 confirmed live). A26 pending (deferred, not faked).
+Regression: flutter test — 463/463 pass; flutter analyze — No issues found!
+            deno test (storage-upload-url + firebase-auth) — 12/12 pass;
+            deno lint — clean.
 ```

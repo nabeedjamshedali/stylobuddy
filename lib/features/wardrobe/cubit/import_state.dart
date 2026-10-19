@@ -12,6 +12,7 @@ class ImportState {
     this.lastImportCount = 0,
     this.pickedFiles = const {},
     this.lastImportHadUploadFailure = false,
+    this.saving = false,
   });
 
   final String source;
@@ -38,6 +39,16 @@ class ImportState {
   /// `false` at the start of every new batch ([makeDrafts]).
   final bool lastImportHadUploadFailure;
 
+  /// True only while a batch-completing `confirmCurrent` call is between its
+  /// upload loop and the final `WardrobeCubit.addItems` save (set at the
+  /// very start of that call, cleared once the save/emit completes). Guards
+  /// against a double-tap re-entering `confirmCurrent` across the `await`
+  /// gap the real upload introduces — without this, a second tap before the
+  /// first save lands could both save the batch a second time and race the
+  /// first call's own final `emit`, including wiping `pickedFiles`/drafts
+  /// the first call is still mid-upload against.
+  final bool saving;
+
   /// The draft currently under review, or null when there is nothing left
   /// (missing, not an empty draft).
   ClothingItem? get current =>
@@ -54,6 +65,7 @@ class ImportState {
     int? lastImportCount,
     Map<String, XFile>? pickedFiles,
     bool? lastImportHadUploadFailure,
+    bool? saving,
   }) => ImportState(
     source: source ?? this.source,
     count: count ?? this.count,
@@ -64,5 +76,6 @@ class ImportState {
     pickedFiles: pickedFiles ?? this.pickedFiles,
     lastImportHadUploadFailure:
         lastImportHadUploadFailure ?? this.lastImportHadUploadFailure,
+    saving: saving ?? this.saving,
   );
 }

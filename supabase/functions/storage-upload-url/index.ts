@@ -7,6 +7,12 @@ import { verifyFirebaseToken } from "../_shared/firebase-auth.ts";
 
 const BUCKET = "user-photos";
 
+// Defense-in-depth on this auth boundary: `itemId` becomes a path segment
+// in Supabase Storage (`{uid}/{itemId}.jpg`), so beyond "non-empty string"
+// it is worth a cheap allowlist against path-traversal/control-character
+// payloads, even though the uid segment itself is never caller-supplied.
+const ITEM_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
 function supabaseUrl(): string {
   const value = Deno.env.get("SUPABASE_URL");
   if (!value) throw new Error("SUPABASE_URL is not configured");
@@ -90,7 +96,7 @@ export async function handleRequest(
   } catch {
     itemId = undefined;
   }
-  if (typeof itemId !== "string" || itemId.trim().length === 0) {
+  if (typeof itemId !== "string" || !ITEM_ID_PATTERN.test(itemId)) {
     return jsonResponse({ error: "itemId is required" }, 400);
   }
 

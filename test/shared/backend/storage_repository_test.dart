@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -103,6 +104,32 @@ void main() {
       await expectLater(
         repo.uploadWardrobePhoto(itemId: 'item-1', file: _file()),
         throwsA(anything),
+      );
+    },
+  );
+
+  test(
+    'F15_important3 uploadWardrobePhoto fails gracefully within a bounded time instead of hanging when the sign request never completes',
+    () async {
+      final neverCompletes = Completer<http.Response>();
+      final client = _FakeClient((request) => neverCompletes.future);
+      final repo = StorageRepository(
+        client: client,
+        getIdToken: () async => 'fake-id-token',
+        // A short override so this test proves "bounded, not hanging"
+        // without waiting out the real 30-second production timeout.
+        networkTimeout: const Duration(milliseconds: 200),
+      );
+
+      await expectLater(
+        repo.uploadWardrobePhoto(itemId: 'item-1', file: _file()),
+        throwsA(anything),
+      ).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => fail(
+          'uploadWardrobePhoto hung instead of resolving (failing) within '
+          'a bounded time',
+        ),
       );
     },
   );

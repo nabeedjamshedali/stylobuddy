@@ -364,6 +364,116 @@ void main() {
   );
 
   testWidgets(
+    'F15_A09 lib/app.dart constructs WardrobeCubit with FirestoreWardrobeRepository (not InMemoryWardrobeRepository/SeedData) once a uid is emitted, reflecting Firestore-seeded data rather than guest seed data',
+    (tester) async {
+      final firestore = FakeFirebaseFirestore();
+      // Seed the fake Firestore directly (as a real signed-in user's
+      // pre-existing document would be) before StyloBuddyApp is ever
+      // pumped, so this exercises `app.dart`'s own dual-mode construction
+      // (not a hand-built WardrobeCubit) actually reading from Firestore.
+      await firestore
+          .collection('users/uid-1/wardrobeItems')
+          .doc('firestore-only-item')
+          .set({
+            'id': 'firestore-only-item',
+            'name': 'Firestore Only',
+            'category': 'Shirts',
+            'color': 'Teal',
+            'occasion': 'Everyday',
+            'season': 'All season',
+            'wears': 0,
+          });
+
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: 'uid-1',
+        ),
+      );
+      await tester.pumpAndSettle();
+      // `pumpAndSettle` only re-pumps while a frame is actually scheduled;
+      // emitting into a Cubit with no currently-listening `BlocBuilder`
+      // doesn't itself schedule one, so it can return before
+      // fake_cloud_firestore's `snapshots()` Future chain (pure microtasks,
+      // no Timer) has actually run to completion — confirmed live while
+      // writing this test: a single `pumpAndSettle()` (even paired with one
+      // extra real-time delay) is flaky here. Polling via `runAsync` (which
+      // steps outside the frame-pump mechanism so the real microtask/event
+      // loop queue can drain) until the expected item actually shows up,
+      // bounded so a genuine regression still fails fast rather than
+      // hanging, is the reliable form.
+      List<String> ids = [];
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        final context = tester.element(find.byType(MaterialApp));
+        ids = _idsOf(context.read<WardrobeCubit>().state);
+        if (ids.contains('firestore-only-item')) break;
+      }
+
+      expect(
+        ids,
+        contains('firestore-only-item'),
+        reason:
+            'a signed-in uid must read from FirestoreWardrobeRepository, '
+            'not from SeedData',
+      );
+      final seedIds = SeedData.items.map((i) => i.id).toList();
+      expect(
+        ids.any(seedIds.contains),
+        isFalse,
+        reason:
+            'a signed-in WardrobeCubit must never fall back to guest-mode '
+            'SeedData — only what Firestore actually has',
+      );
+    },
+  );
+
+  testWidgets(
+    'F15_A24 a full sign-in -> draft -> sign-out -> sign-in-again cycle leaves no stale picked-file/draft state in the newly-constructed ImportCubit',
+    (tester) async {
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await _pumpApp(tester, controller.stream);
+
+      controller.add('uid-1');
+      await tester.pumpAndSettle();
+      final firstSessionContext = tester.element(find.byType(MaterialApp));
+      final firstImportCubit = firstSessionContext.read<ImportCubit>();
+      // Builds a draft batch (the same state `pickPhoto()` would otherwise
+      // attach a real picked file onto) without touching the real
+      // image_picker plugin, which this widget-test environment cannot
+      // invoke. `drafts`/`pickedFiles` are both part of the "no stale
+      // picker state" surface this assertion is about.
+      firstSessionContext.read<ImportCubit>().setCount(1);
+      firstSessionContext.read<ImportCubit>().makeDrafts();
+      expect(firstSessionContext.read<ImportCubit>().state.drafts, isNotEmpty);
+
+      controller.add(null);
+      await tester.pumpAndSettle();
+      controller.add('uid-1');
+      await tester.pumpAndSettle();
+
+      final secondSessionContext = tester.element(find.byType(MaterialApp));
+      final freshImportCubit = secondSessionContext.read<ImportCubit>();
+      expect(
+        identical(freshImportCubit, firstImportCubit),
+        isFalse,
+        reason: 'the sign-out/sign-in cycle must reconstruct ImportCubit',
+      );
+      expect(freshImportCubit.state.drafts, isEmpty);
+      expect(freshImportCubit.state.pickedFiles, isEmpty);
+    },
+  );
+
+  testWidgets(
     'F14_A07 StyloBuddyApp with no uidStream override renders guest/SeedData state (relies on the synchronous guest-mode fallback in uidChanges(), not an injected fake stream)',
     (tester) async {
       // Deliberately no `uidStream:` override: this exercises the real

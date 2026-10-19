@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../shared/models/clothing_item.dart';
@@ -17,9 +18,29 @@ class WardrobeCubit extends Cubit<WardrobeState> {
     // For the Firestore implementation this is the long-lived
     // `snapshots()` listener (architecture D6), torn down in [close]
     // rather than left subscribed past this Cubit's lifetime.
-    _subscription = _repository.watchItems().listen((items) {
-      emit(state.copyWith(items: items));
-    });
+    _subscription = _repository.watchItems().listen(
+      (items) {
+        emit(state.copyWith(items: items));
+      },
+      // A snapshot error (e.g. a `permission-denied` mid-session) must not
+      // kill this subscription silently for the rest of the Cubit's
+      // lifetime, nor propagate as an unhandled stream error (`main.dart`
+      // routes those to Crashlytics as `fatal: true`, which this is not —
+      // the last known in-memory state is kept and reconciliation simply
+      // stops until the next successful snapshot).
+      onError: (Object error, StackTrace stackTrace) {
+        _logError('watchItems() stream error', error, stackTrace);
+      },
+    );
+  }
+
+  /// Non-fatal logging for a background write/stream failure — never
+  /// rethrown, never left as an unhandled async error (which `main.dart`
+  /// would otherwise report to Crashlytics as `fatal: true`).
+  static void _logError(String context, Object error, StackTrace stackTrace) {
+    if (kDebugMode) {
+      debugPrint('WardrobeCubit: $context: $error\n$stackTrace');
+    }
   }
 
   final WardrobeRepository _repository;
@@ -67,7 +88,11 @@ class WardrobeCubit extends Cubit<WardrobeState> {
 
   void addItems(List<ClothingItem> added) {
     emit(state.copyWith(items: [...state.items, ...added]));
-    unawaited(_repository.addItems(added));
+    unawaited(
+      _repository.addItems(added).catchError((Object error, StackTrace st) {
+        _logError('addItems failed', error, st);
+      }),
+    );
   }
 
   void updateItem(ClothingItem updated) {
@@ -76,14 +101,22 @@ class WardrobeCubit extends Cubit<WardrobeState> {
         items: [for (final i in state.items) i.id == updated.id ? updated : i],
       ),
     );
-    unawaited(_repository.updateItem(updated));
+    unawaited(
+      _repository.updateItem(updated).catchError((Object error, StackTrace st) {
+        _logError('updateItem failed', error, st);
+      }),
+    );
   }
 
   void removeItem(String id) {
     emit(
       state.copyWith(items: state.items.where((i) => i.id != id).toList()),
     );
-    unawaited(_repository.removeItem(id));
+    unawaited(
+      _repository.removeItem(id).catchError((Object error, StackTrace st) {
+        _logError('removeItem failed', error, st);
+      }),
+    );
   }
 
   void adjustWears(List<String> ids, int delta) {
@@ -97,7 +130,14 @@ class WardrobeCubit extends Cubit<WardrobeState> {
         ],
       ),
     );
-    unawaited(_repository.adjustWears(ids, delta));
+    unawaited(
+      _repository.adjustWears(ids, delta).catchError((
+        Object error,
+        StackTrace st,
+      ) {
+        _logError('adjustWears failed', error, st);
+      }),
+    );
   }
 
   @override

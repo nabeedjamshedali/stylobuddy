@@ -83,18 +83,33 @@ class FirestoreWardrobeRepository implements WardrobeRepository {
 
   @override
   Future<void> adjustWears(List<String> ids, int delta) async {
-    final batch = _collection.firestore.batch();
-    for (final id in ids) {
-      final snapshot = await _collection.doc(id).get();
-      final current = snapshot.data();
-      if (current == null) continue;
-      // Never drives wears below 0 (F15-A06), mirroring WardrobeCubit's
-      // existing clamp invariant, now also enforced at the write layer.
-      final next = current.copyWith(
-        wears: (current.wears + delta).clamp(0, 1 << 30),
-      );
-      batch.set(_collection.doc(id), next);
-    }
-    await batch.commit();
+    // Read-modify-write inside a single transaction: `OutfitsCubit`'s
+    // log-wear/undo-wear can both call this unawaited and concurrently
+    // (e.g. a rapid log-then-undo from the same user), and a plain
+    // `get()` -> `batch.set()` pair (no isolation between the two) would
+    // let the slower call's read overwrite the faster call's write,
+    // silently losing a +1/-1 on the persisted `wears` count. Firestore's
+    // transaction retries the whole closure on write-conflict, so by the
+    // time this commits, every read inside it reflects the latest
+    // committed value.
+    await _collection.firestore.runTransaction((tx) async {
+      // Firestore transactions require every read to happen before any
+      // write within the same transaction (real Firestore enforces this
+      // server-side; the fake double enforces it too) — so every `tx.get`
+      // across all [ids] must finish before the first `tx.set`, not
+      // interleaved per id as a naive loop would do.
+      final docRefs = [for (final id in ids) _collection.doc(id)];
+      final snapshots = [for (final docRef in docRefs) await tx.get(docRef)];
+      for (var i = 0; i < docRefs.length; i++) {
+        final current = snapshots[i].data();
+        if (current == null) continue;
+        // Never drives wears below 0 (F15-A06), mirroring WardrobeCubit's
+        // existing clamp invariant, now also enforced at the write layer.
+        final next = current.copyWith(
+          wears: (current.wears + delta).clamp(0, 1 << 30),
+        );
+        tx.set(docRefs[i], next);
+      }
+    });
   }
 }

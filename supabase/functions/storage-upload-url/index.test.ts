@@ -76,3 +76,20 @@ Deno.test(
     assertEquals(response.status, 400);
   },
 );
+
+Deno.test(
+  "F15_minor3_handler an itemId containing a path-traversal/slash payload is rejected with 400, never passed to sign()",
+  async () => {
+    const response = await handleRequest(
+      postRequest({ itemId: "../../etc/passwd" }, "Bearer good-token"),
+      {
+        verify: () => Promise.resolve("uid-123"),
+        sign: (): Promise<never> => {
+          throw new Error("sign() must not be called for a malformed itemId");
+        },
+      },
+    );
+
+    assertEquals(response.status, 400);
+  },
+);

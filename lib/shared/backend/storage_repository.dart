@@ -4,6 +4,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
+/// Upper bound for each network call this repository makes — A12 requires
+/// an upload failure to never delay the batch save indefinitely; without
+/// this, a hung signed-URL request or a hung PUT (e.g. a dead connection
+/// that never errors and never completes) would block `ImportCubit.
+/// confirmCurrent`'s `await` forever instead of landing in the existing
+/// `catch` path with `imageUrl: null`.
+const _defaultNetworkTimeout = Duration(seconds: 30);
+
+/// This project's Supabase base URL, used both for the default Edge
+/// Function endpoint and (previously) for constructing a public-object
+/// URL — de-duplicated to one constant rather than two separate literals
+/// drifting apart if the project ref ever changes.
+const _supabaseBaseUrl = 'https://dbaeaqyoyilxcuwplvuw.supabase.co';
+
 /// Calls the `storage-upload-url` Edge Function for a signed Supabase
 /// Storage URL, then `PUT`s the file bytes to it directly (storage doc §1,
 /// §2). Not wardrobe-specific logic even though wardrobe is its only
@@ -13,17 +27,23 @@ class StorageRepository {
     http.Client? client,
     Uri? functionUrl,
     Future<String?> Function()? getIdToken,
+    Duration? networkTimeout,
   }) : _client = client ?? http.Client(),
        _functionUrl =
            functionUrl ??
-           Uri.parse(
-             'https://dbaeaqyoyilxcuwplvuw.supabase.co/functions/v1/storage-upload-url',
-           ),
-       _getIdToken = getIdToken ?? _defaultGetIdToken;
+           Uri.parse('$_supabaseBaseUrl/functions/v1/storage-upload-url'),
+       _getIdToken = getIdToken ?? _defaultGetIdToken,
+       _networkTimeout = networkTimeout ?? _defaultNetworkTimeout;
 
   final http.Client _client;
   final Uri _functionUrl;
   final Future<String?> Function() _getIdToken;
+
+  /// Test-only override seam; production always uses
+  /// [_defaultNetworkTimeout]. A test that needs to prove "hangs are
+  /// bounded" without actually waiting 30 real seconds injects a much
+  /// shorter value here.
+  final Duration _networkTimeout;
 
   static Future<String?> _defaultGetIdToken() async {
     try {
@@ -53,14 +73,16 @@ class StorageRepository {
       throw StateError('No Firebase ID token available for upload');
     }
 
-    final signResponse = await _client.post(
-      _functionUrl,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'itemId': itemId}),
-    );
+    final signResponse = await _client
+        .post(
+          _functionUrl,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'itemId': itemId}),
+        )
+        .timeout(_networkTimeout);
     if (signResponse.statusCode != 200) {
       throw Exception(
         'storage-upload-url returned ${signResponse.statusCode}',
@@ -73,36 +95,35 @@ class StorageRepository {
     }
 
     final bytes = await file.readAsBytes();
-    final putResponse = await _client.put(
-      Uri.parse(uploadUrl),
-      headers: const {'Content-Type': 'image/jpeg'},
-      body: bytes,
-    );
+    final putResponse = await _client
+        .put(
+          Uri.parse(uploadUrl),
+          headers: const {'Content-Type': 'image/jpeg'},
+          body: bytes,
+        )
+        .timeout(_networkTimeout);
     if (putResponse.statusCode != 200 && putResponse.statusCode != 201) {
       throw Exception('upload PUT failed with ${putResponse.statusCode}');
     }
 
-    return _publicUrlFor(itemId: itemId, body: body);
+    return _resolveImageUrl(body: body);
   }
 
-  // KNOWN GAP (discovered during this task's live verification, flagged
-  // rather than silently worked around — see F15 §13's existing "not
-  // displayed this task" note, now with a concrete reason): `user-photos`
-  // is a *private* bucket (storage doc §1), so this constructed
-  // `.../object/public/...` URL 404s/400s if actually fetched today.
-  // Persisting it is harmless for this task (nothing reads `imageUrl` back
-  // into a widget yet — GarmentImage doesn't render it, F15 §13), but
-  // whichever future task wires `GarmentImage` to `imageUrl` must replace
-  // this with a real signed *read* URL (or make the bucket public) before
-  // that value is ever handed to an `Image.network`-style widget.
-  String _publicUrlFor({
-    required String itemId,
-    required Map<String, dynamic> body,
-  }) {
+  // KNOWN GAP, revised after the review round: a constructed
+  // `.../object/public/...` URL is a dead link for this task's `user-photos`
+  // bucket (storage doc §1: it's private), so persisting that broken shape
+  // would need a data backfill the moment a future task wires `GarmentImage`
+  // up to read `imageUrl` back. Persisting the raw storage `path` instead
+  // (e.g. `uid-1/item-1.jpg`) avoids that: it is not itself a fetchable URL
+  // either, but it is the exact input a future signed-*read*-URL call needs,
+  // so that future task can turn it into a real URL in place rather than
+  // re-deriving it from a stored dead link or re-running a backfill over
+  // every existing document.
+  String _resolveImageUrl({required Map<String, dynamic> body}) {
     final path = body['path'] as String?;
     if (path == null || path.isEmpty) {
       throw Exception('storage-upload-url response missing path');
     }
-    return 'https://dbaeaqyoyilxcuwplvuw.supabase.co/storage/v1/object/public/user-photos/$path';
+    return path;
   }
 }

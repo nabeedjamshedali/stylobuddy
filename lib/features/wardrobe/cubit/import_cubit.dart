@@ -119,67 +119,82 @@ class ImportCubit extends Cubit<ImportState> {
     required String occasion,
     required String season,
   }) async {
+    // Guards against a double-tap re-entering this method across the real
+    // upload's `await` gap below: without this, a second call landing while
+    // the first is still mid-upload could both save the batch twice and
+    // race the first call's own final `emit` (including wiping
+    // `pickedFiles`/`drafts` the first call is still reading). No-ops
+    // (returns null, as if the tap were simply dropped) rather than
+    // queuing — the first call's own result is what the UI already awaits.
+    if (state.saving) return null;
     final current = state.current;
     if (current == null) return null;
     final trimmed = name.trim();
     if (trimmed.isEmpty) return 'Name is required';
-    final updated = current.copyWith(
-      name: trimmed,
-      category: category,
-      color: color,
-      occasion: occasion,
-      season: season,
-    );
-    final drafts = [
-      for (var i = 0; i < state.drafts.length; i++)
-        i == state.uploadIndex ? updated : state.drafts[i],
-    ];
-    final nextIndex = state.uploadIndex + 1;
-    if (nextIndex >= drafts.length) {
-      final pickedFiles = state.pickedFiles;
-      var hadUploadFailure = false;
-      final finalized = <ClothingItem>[];
-      for (final draft in drafts) {
-        final file = pickedFiles[draft.id];
-        if (file == null) {
-          // No real photo for this draft — existing simulated/pool-art
-          // path, unchanged (F15-A11).
-          finalized.add(draft);
-          continue;
+    emit(state.copyWith(saving: true));
+    try {
+      final updated = current.copyWith(
+        name: trimmed,
+        category: category,
+        color: color,
+        occasion: occasion,
+        season: season,
+      );
+      final drafts = [
+        for (var i = 0; i < state.drafts.length; i++)
+          i == state.uploadIndex ? updated : state.drafts[i],
+      ];
+      final nextIndex = state.uploadIndex + 1;
+      if (nextIndex >= drafts.length) {
+        final pickedFiles = state.pickedFiles;
+        var hadUploadFailure = false;
+        final finalized = <ClothingItem>[];
+        for (final draft in drafts) {
+          final file = pickedFiles[draft.id];
+          if (file == null) {
+            // No real photo for this draft — existing simulated/pool-art
+            // path, unchanged (F15-A11).
+            finalized.add(draft);
+            continue;
+          }
+          try {
+            final url = await _storage.uploadWardrobePhoto(
+              itemId: draft.id,
+              file: file,
+            );
+            finalized.add(draft.copyWith(imageUrl: url));
+          } catch (_) {
+            // Never blocks the save (F15-A12); imageUrl stays null for this
+            // item and the batch-level failure flag is raised (F15-A13).
+            hadUploadFailure = true;
+            finalized.add(draft);
+          }
         }
-        try {
-          final url = await _storage.uploadWardrobePhoto(
-            itemId: draft.id,
-            file: file,
-          );
-          finalized.add(draft.copyWith(imageUrl: url));
-        } catch (_) {
-          // Never blocks the save (F15-A12); imageUrl stays null for this
-          // item and the batch-level failure flag is raised (F15-A13).
-          hadUploadFailure = true;
-          finalized.add(draft);
-        }
+        _wardrobe.addItems(finalized);
+        emit(
+          state.copyWith(
+            drafts: const [],
+            uploadIndex: 0,
+            showOriginal: false,
+            lastImportCount: finalized.length,
+            pickedFiles: const {},
+            lastImportHadUploadFailure: hadUploadFailure,
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            drafts: drafts,
+            uploadIndex: nextIndex,
+            showOriginal: false,
+          ),
+        );
       }
-      _wardrobe.addItems(finalized);
-      emit(
-        state.copyWith(
-          drafts: const [],
-          uploadIndex: 0,
-          showOriginal: false,
-          lastImportCount: finalized.length,
-          pickedFiles: const {},
-          lastImportHadUploadFailure: hadUploadFailure,
-        ),
-      );
-    } else {
-      emit(
-        state.copyWith(
-          drafts: drafts,
-          uploadIndex: nextIndex,
-          showOriginal: false,
-        ),
-      );
+      return null;
+    } finally {
+      if (!isClosed) {
+        emit(state.copyWith(saving: false));
+      }
     }
-    return null;
   }
 }

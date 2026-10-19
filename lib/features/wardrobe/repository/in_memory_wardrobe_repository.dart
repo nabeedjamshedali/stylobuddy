@@ -9,6 +9,16 @@ import 'wardrobe_repository.dart';
 /// same synchronous-feeling writes (every write's `Future` is already
 /// resolved by the time it's returned), no network call ever constructed
 /// on this branch (F15-A08).
+///
+/// [watchItems] is deliberately **single-subscription** (backed by a plain
+/// `StreamController<List<ClothingItem>>()`, not `.broadcast()`): this
+/// repository has exactly one caller in this codebase today
+/// ([WardrobeCubit]'s own constructor), so multi-listener support was never
+/// needed and a second concurrent `.listen()` would throw
+/// `Bad state: Stream has already been listened to`. If a future caller
+/// ever needs a second concurrent listener against this class, switch the
+/// controller to `.broadcast()` (see [WardrobeRepository.watchItems]'s own
+/// doc comment for why this isn't guaranteed by the interface).
 class InMemoryWardrobeRepository implements WardrobeRepository {
   InMemoryWardrobeRepository() {
     // A single-subscription StreamController buffers events added before
