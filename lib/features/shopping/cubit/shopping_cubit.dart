@@ -79,33 +79,48 @@ class ShoppingCubit extends Cubit<ShoppingState> {
   /// the caller can toast accordingly — same bool contract as before this
   /// task (F19 doc §6).
   ///
+  /// This Cubit is the ONLY place that decides add-vs-remove — it computes
+  /// `added` from its own held state and hands that already-made decision
+  /// to [ShoppingRepository.setMembership] as an explicit `bool`. The
+  /// repository never re-reads the document to re-derive its own opinion
+  /// of add-vs-remove (the fix-round correction to this task's original
+  /// `toggleWishlist(id)` design, which let the Cubit's state and the
+  /// document disagree about which direction a toggle went, so the UI
+  /// could toast "saved" while the opposite was actually persisted).
+  ///
   /// Applies the optimistic update synchronously (matching today's
   /// instant-feeling UX and keeping the existing guest-mode test suite's
   /// synchronous assertions unaffected, F19-A08/A12) and fires the
   /// repository's own persistence call in the background. If that call
-  /// fails, it rolls back ONLY `wishlist`, evaluated against the Cubit's
-  /// *current* state at failure time — never a captured-whole-state-before-
-  /// the-call restore, which would clobber a different, concurrently
-  /// in-flight, independently succeeding `setTab`/`select` call's already
-  /// applied change (F17/F18's own review-round fix, baked in here from the
-  /// start — F19-A13).
+  /// fails, it rolls back ONLY this one `id`'s membership, evaluated
+  /// against the Cubit's *current* `wishlist` at failure time — never a
+  /// captured-whole-list-before-the-call restore, which would clobber a
+  /// different, concurrently in-flight, independently succeeding toggle of
+  /// a *different* id (same bug class F17/F18's own review rounds caught —
+  /// F19-A13).
   bool toggleWishlist(String id) {
     final added = !state.wishlist.contains(id);
-    final previousWishlist = state.wishlist;
     final nextWishlist = added
         ? [...state.wishlist, id]
         : state.wishlist.where((x) => x != id).toList();
     emit(state.copyWith(wishlist: nextWishlist));
     unawaited(
-      _repository.toggleWishlist(id).catchError((
+      _repository.setMembership(id, added).catchError((
         Object error,
         StackTrace stackTrace,
       ) {
-        _logError('toggleWishlist failed', error, stackTrace);
+        _logError('setMembership failed', error, stackTrace);
         if (!isClosed) {
-          emit(state.copyWith(wishlist: previousWishlist));
+          // Targeted revert: undo only this id against the CURRENT
+          // wishlist at failure time, never a captured-before-the-call
+          // snapshot (that would clobber a different, concurrently
+          // in-flight, independently succeeding toggle of another id).
+          final current = state.wishlist;
+          final reverted = added
+              ? current.where((x) => x != id).toList()
+              : (current.contains(id) ? current : [...current, id]);
+          emit(state.copyWith(wishlist: reverted));
         }
-        return added;
       }),
     );
     return added;

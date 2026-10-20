@@ -3,15 +3,23 @@
 /// exclusions (schema doc §7) and get no method here, ever — they stay
 /// pure, local `ShoppingCubit.emit(state.copyWith(...))` calls.
 ///
-/// `toggleWishlist` is the one case in this app's dual-mode repositories
-/// where the Cubit does NOT hand the repository an already-computed final
-/// value (contrast `ProfileRepository.setStyles`): the repository itself
-/// holds (in-memory) or reads (Firestore) the current membership and
-/// computes the add-or-remove result, returning whether the id was added
-/// (`true`) or removed (`false`) — mirroring `ShoppingCubit.
-/// toggleWishlist`'s existing bool contract verbatim (F19 doc §6).
+/// `setMembership` follows the same "Cubit already decided, repository
+/// just writes it" shape every other dual-mode repository in this app uses
+/// (contrast `ProfileRepository.setStyles`) — a fix-round correction from
+/// this task's original `toggleWishlist(id)` design, which let
+/// `ShoppingCubit` and `FirestoreShoppingRepository` each independently
+/// re-decide add-vs-remove from two different sources of truth (the
+/// Cubit's own state vs. a fresh Firestore read) and could disagree,
+/// producing a UI toast that claimed the opposite of what was actually
+/// persisted. `ShoppingCubit.toggleWishlist` is the one place that still
+/// *decides* add-or-remove (from its own held state, exactly as before);
+/// [setMembership] merely carries out that already-made decision — never
+/// re-reads the document to re-derive it.
 abstract class ShoppingRepository {
   Stream<List<String>> watchWishlist();
 
-  Future<bool> toggleWishlist(String id);
+  /// Adds [id] to the wishlist when [add] is `true`, removes it when
+  /// `false` — an idempotent, unambiguous instruction, not a toggle the
+  /// repository must figure out for itself.
+  Future<void> setMembership(String id, bool add);
 }

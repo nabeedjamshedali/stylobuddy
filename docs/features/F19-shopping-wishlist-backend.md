@@ -204,50 +204,54 @@ Sign-out then sign-in-again as a different (or the same) user:
 
 ## 6. Interface surface
 
+**Amended in the Task 6 fix round** (reviewer-found correctness bug, see
+§13's dated note): the original design below this heading had
+`toggleWishlist(id)` as the one write method, with each repository
+implementation independently re-deciding add-vs-remove by inspecting its
+own held/read state. That let `ShoppingCubit`'s decision and the
+repository's decision disagree whenever the two sources of truth had
+diverged (pre-first-snapshot, mid-rollback, or an ordinary race), so the
+UI could toast "saved" while the document actually ended up with the item
+removed. The interface is now:
+
 ```text
 abstract class ShoppingRepository
   Stream<List<String>> watchWishlist()                      both impls
-  Future<bool> toggleWishlist(String id)                    both impls
-    -- returns true when id was added, false when removed,
-       mirroring ShoppingCubit.toggleWishlist's existing bool contract
+  Future<void> setMembership(String id, bool add)           both impls
+    -- carries out an already-decided add (true) or remove (false);
+       never re-reads/re-derives the decision itself
 
 class InMemoryShoppingRepository implements ShoppingRepository   guest mode
 class FirestoreShoppingRepository implements ShoppingRepository  signed-in mode
 ```
 
 `ShoppingCubit`'s public surface (`setTab`, `select`, `toggleWishlist`) is
-unchanged in shape and return type. `ShoppingCubit`'s constructor gains an
-optional `ShoppingRepository` parameter (named `repository`, defaulting to
+unchanged in shape and return type — `toggleWishlist` is still the only
+place in the app that *decides* add-vs-remove (from its own held state,
+exactly as before this task), it just now hands that already-made
+decision to `setMembership` as an explicit `bool` rather than letting the
+repository re-derive it. `ShoppingCubit`'s constructor gains an optional
+`ShoppingRepository` parameter (named `repository`, defaulting to
 `InMemoryShoppingRepository()`, matching the F16/F17/F18-resolved
 constructor-parameter precedent so no existing `ShoppingCubit()` call site
 in a pre-existing test needs editing).
 
-`FirestoreShoppingRepository.toggleWishlist` is the **only** write method
-on this interface, and it is the one case in this feature where a plain
-"hand the repository the final value" shape (F18's stance for every
-`ProfileRepository` setter) does not apply — `ShoppingCubit` does not
-pre-compute the next list the way `ProfileCubit.togglePreference` does for
-styles/occasions, because `ShoppingCubit.toggleWishlist`'s `bool`
-add-or-removed return value is itself derived from membership state the
-repository is the one holding (for the signed-in case) or computing (for
-the in-memory case). `FirestoreShoppingRepository.toggleWishlist` therefore
-reads the current `wishlist` array (a single `get()`/the latest value
-observed by its own `watchWishlist()` subscription — implementer's choice,
-binding only on the observable outcome in §11) and writes back the
-add-or-remove result in one targeted call. This is **not** a
+`FirestoreShoppingRepository.setMembership` is the **only** write method on
+this interface. It is implemented via Firestore's `FieldValue.arrayUnion`/
+`arrayRemove` (`_doc.set({'wishlist': add ? FieldValue.arrayUnion([id]) :
+FieldValue.arrayRemove([id])}, SetOptions(merge: true))`) — idempotent by
+construction (adding an already-present id, or removing an already-absent
+one, is a no-op), so there is **no** `get()`-then-`set()` read-modify-write
+window at all, unlike this task's original design. This is still not a
 `runTransaction` requirement the way F16's `logWear`/`removeWear` needed
-one: a double-toggle race (two rapid taps) loses to last-write-wins exactly
-the same way F18 §12 already accepts for `togglePreference`, not a new
-risk class — see §13.
+one — there is no read step to make atomic with the write in the first
+place.
 
-The write itself — regardless of whether it is phrased as `_doc.set({
-'wishlist': next}, SetOptions(merge: true))` or `_doc.update({'wishlist':
-next})` — touches **only** the `wishlist` key. Neither shape is a
-whole-document `set()` without `merge: true`/without being scoped to one
-key; this is the binding non-clobber constraint carried from F18's own
-Important #5 lesson, applied here in the other direction (shopping writes
-must not clobber Profile fields, exactly as Profile writes must not clobber
-`wishlist`).
+The write itself touches **only** the `wishlist` key, via a single-key
+merge-set. This is the binding non-clobber constraint carried from F18's
+own Important #5 lesson, applied here in the other direction (shopping
+writes must not clobber Profile fields, exactly as Profile writes must not
+clobber `wishlist`) — see §11 A05/A06/A07.
 
 ## 7. Domain model usage
 
@@ -302,7 +306,7 @@ is needed this task.
   `ShoppingState`-before-the-call restore, which could wipe a `tab`/
   `selectedId` change a different, concurrently-in-flight call had just
   made (F17/F18's own review-round-avoided bug, applied here from day one;
-  see §11 A09/A10).
+  see §11 A12/A13).
 - `watchWishlist()` reading a `users/{uid}` document with an entirely
   missing `wishlist` field (practically unlikely given F18's bootstrap
   seeds it, but possible for a uid bootstrapped before F18's `wishlist`
@@ -311,7 +315,7 @@ is needed this task.
   array (`wishlist: []`, the normal just-bootstrapped case), which is read
   back verbatim as the same empty list by coincidence of value but via a
   different code path (one default-substitutes, the other reads a real
-  value) — both are tested separately in §11 A11/A12 even though they
+  value) — both are tested separately in §11 A17 even though they
   produce the same `[]` result, because the project's missing-vs-empty
   convention (`03-domain-model.md` §4) requires the two paths be provably
   distinct in code, not merged into one untested assumption.
@@ -326,24 +330,24 @@ is needed this task.
 ## 11. Validation assertions
 
 ```
-F19-A01  [U]  FirestoreShoppingRepository.toggleWishlist adding an id not already present results in watchWishlist() emitting a list containing that id, read back via Firestore's own array field on users/{uid} (not a duplicated in-memory cache)
-F19-A02  [U]  FirestoreShoppingRepository.toggleWishlist removing an id already present results in watchWishlist() emitting a list without that id
-F19-A03  [U]  FirestoreShoppingRepository.toggleWishlist returns true when the id was added and false when it was removed, matching ShoppingCubit.toggleWishlist's existing bool contract verbatim
+F19-A01  [U]  FirestoreShoppingRepository.setMembership(id, true) adding an id not already present results in watchWishlist() emitting a list containing that id, read back via Firestore's own array field on users/{uid} (not a duplicated in-memory cache)
+F19-A02  [U]  FirestoreShoppingRepository.setMembership(id, false) removing an id already present results in watchWishlist() emitting a list without that id
+F19-A03  [U]  FirestoreShoppingRepository.setMembership completes an add then a remove of the same id, leaving the document in the expected final state each time — the true/false "added" decision itself is owned by ShoppingCubit.toggleWishlist (unchanged bool contract), not re-derived by the repository (amended interface, see §6)
 F19-A04  [U]  ProfileRepository (F18) exposes no method whose name or payload references wishlist — grepping lib/features/profile/repository/firestore_profile_repository.dart's non-bootstrap write methods (updateDetails, setStyles, setOccasions, setDailyNotifications, setPlannedNotifications, setProductNotifications, setWeatherConsent, setClimate, setPlan, setBillingCycle) confirms none include 'wishlist' in its written field set — FirestoreShoppingRepository is the sole non-bootstrap writer of that field
-F19-A05  [I]  A real Firestore round-trip (fake_cloud_firestore): ShoppingCubit.toggleWishlist(id) followed immediately by ProfileCubit.setClimate(v) against the same uid's document results in a final read showing BOTH the toggled wishlist AND the updated climate present together — neither write's resolution dropped the other's change (the plan's "reviewed explicitly for this" requirement, tested directly, not inferred)
-F19-A06  [I]  The reverse ordering of A05 (ProfileCubit.setOccasions(...) followed immediately by ShoppingCubit.toggleWishlist(id)) produces the same non-clobbering result — both fields present, order-independent
-F19-A07  [U]  Every FirestoreShoppingRepository write to users/{uid} is a targeted update touching only the wishlist key — a test double/fake records the exact field-key set written by toggleWishlist and asserts it is exactly {'wishlist'}, never a payload containing any ProfileState-owned key (name, email, styles, occasions, dailyNotifications, plannedNotifications, productNotifications, weatherConsent, climate, plan, billingCycle) and never an unscoped whole-document set() call
+F19-A05  [I]  A real Firestore round-trip (fake_cloud_firestore), through the actual ShoppingCubit/ProfileCubit (not repository-to-repository) with both calls fired unawaited: ShoppingCubit.toggleWishlist(id) and ProfileCubit.setClimate(v) against the same uid's document results in a final read showing BOTH the toggled wishlist AND the updated climate present together — neither write's resolution dropped the other's change (the plan's "reviewed explicitly for this" requirement, tested directly, not inferred)
+F19-A06  [I]  The reverse ordering of A05 (ProfileCubit.togglePreference(...) fired unawaited, then ShoppingCubit.toggleWishlist(id) fired unawaited) produces the same non-clobbering result — both fields present, order-independent
+F19-A07  [U]  Every FirestoreShoppingRepository write to users/{uid} is a targeted update touching only the wishlist key — a DocumentReference wrapper records the exact field-key set written by setMembership and asserts it is exactly {'wishlist'}, never a payload containing any ProfileState-owned key (name, email, styles, occasions, dailyNotifications, plannedNotifications, productNotifications, weatherConsent, climate, plan, billingCycle) and never an unscoped whole-document set() call. (Note: the amended arrayUnion/arrayRemove design has no get()-then-set() window at all, which already closes most of the risk this assertion originally targeted — this test still proves the write payload itself is scoped, independent of that.)
 F19-A08  [U]  Guest mode (InMemoryShoppingRepository) behavior is unchanged from today's ShoppingCubit-held logic — the full pre-existing shopping-related test suite (test/features/shopping/shopping_cubit_test.dart or equivalent) passes unmodified against ShoppingCubit constructed with InMemoryShoppingRepository, with zero existing assertion edited to accommodate this task
-F19-A09  [U]  InMemoryShoppingRepository's toggleWishlist returns a SynchronousFuture (or equivalent already-completed Future), not an async-declared method, verified by asserting the Future is already complete in the same microtask the call returns, before any pump/await — matching the Task 2/F15, Task 3/F16, Task 4/F17, Task 5/F18 lesson
+F19-A09  [U]  InMemoryShoppingRepository's setMembership returns a SynchronousFuture (or equivalent already-completed Future), not an async-declared method, verified by asserting the Future is already complete in the same microtask the call returns, before any pump/await — matching the Task 2/F15, Task 3/F16, Task 4/F17, Task 5/F18 lesson
 F19-A10  [U]  InMemoryShoppingRepository never imports or constructs a Firestore client — guest mode makes zero network calls, structurally (same guarantee style as F14-A14/F15-A08/F16-A16/F17-A10/F18-A10)
-F19-A11  [I]  lib/app.dart: with uid == null, ShoppingCubit is constructed with InMemoryShoppingRepository; with uid == 'uid-1', it is constructed with FirestoreShoppingRepository — object type differs across the F14 sign-in/out transition, driven through a real StyloBuddyApp pumped via the uidStream/firestoreOverride harness with a bounded-polling wait (never a bare pumpAndSettle() per the Task 2 known gotcha), never a hand-built Cubit, per the Task 2/3/4/5 lesson that a hand-built-Cubit-only test let app.dart's own ternary go unverified
-F19-A12  [I]  ShoppingCubit.toggleWishlist, when the repository call is in flight, has already optimistically updated state before the Future resolves (optimistic-then-reconcile, D6) — then, on a simulated repository failure, rolls back ONLY wishlist to its pre-toggle value, evaluated against the Cubit's current state at failure time, rather than leaving the optimistic value in place
-F19-A13  [I]  Two interleaved calls — toggleWishlist(id) that will fail, and setTab('closet')/select(otherId) issued before the first resolves — where only toggleWishlist fails: the targeted rollback (A12) reverts wishlist only — tab/selectedId's independently-applied, concurrently-succeeding change survives untouched (confound-free test proving the revert is field-scoped, not whole-ShoppingState, matching F17/F18's own review-round fix)
+F19-A11  [I]  lib/app.dart: with uid == null, ShoppingCubit is constructed with InMemoryShoppingRepository; with uid == 'uid-1', it is constructed with FirestoreShoppingRepository — object type differs across the F14 sign-in/out transition, driven through a real StyloBuddyApp pumped via the uidStream/firestoreOverride harness with a bounded-polling wait (never a bare pumpAndSettle() per the Task 2 known gotcha), never a hand-built Cubit, per the Task 2/3/4/5 lesson that a hand-built-Cubit-only test let app.dart's own ternary go unverified. Both directions of the transition are covered: guest-to-signed-in (the app.dart-level test) and signed-in-to-guest (a Cubit-level sample test, since both are torn down and rebuilt identically per F14 D3).
+F19-A12  [I]  ShoppingCubit.toggleWishlist, when the repository call is in flight, has already optimistically updated state before the Future resolves (optimistic-then-reconcile, D6) — then, on a simulated repository failure, rolls back ONLY that one id's membership, evaluated against the Cubit's current wishlist at failure time, rather than leaving the optimistic value in place or restoring a captured pre-call whole-list snapshot. Proven with a confound-free concurrent-second-toggle test (toggle id 'a', which fails; toggle id 'b', which succeeds; 'b' survives 'a's rollback).
+F19-A13  [I]  Two interleaved calls — toggleWishlist(id) that will fail, and setTab('closet')/select(otherId) issued before the first resolves — where only toggleWishlist fails: the targeted rollback (A12) reverts that one id only — tab/selectedId's independently-applied, concurrently-succeeding change survives untouched (confound-free test proving the revert is field-scoped, not whole-ShoppingState, matching F17/F18's own review-round fix)
 F19-A14  [U]  Any toggleWishlist call inside ShoppingCubit/FirestoreShoppingRepository that is not directly awaited at its call site (fire-and-forget) has a .catchError (or equivalent) attached — a test asserts no unhandled rejection/uncaught Future error surfaces for a write allowed to fail in the background; if no such unawaited call exists in the final implementation, this assertion is satisfied vacuously and the implementer notes that in the completion block rather than skipping the test
 F19-A15  [U]  FirestoreShoppingRepository.watchWishlist()'s stream subscription inside ShoppingCubit has an onError handler attached — a test asserts a simulated stream error does not crash the Cubit or surface as an unhandled zone error
 F19-A16  [I]  Sign-out then sign-in-again (same or different uid) leaves no stale wishlist bleed-through: signing out renders InMemoryShoppingRepository's default empty wishlist (not the previous signed-in user's saved items), and signing in as a different uid shows only that uid's own Firestore document's wishlist, never the prior uid's cached values (F14 Review Focus item 2, re-verified at this feature's layer)
 F19-A17  [U]  watchWishlist() treats a Firestore document with an entirely missing wishlist field (e.g. a doc written before F18's wishlist-seeding existed) as an empty list — constructed directly against the fake (not through any current bootstrap call site) and distinguished in test code from an explicitly-present wishlist: [] (the normal just-bootstrapped case) by exercising two different code paths even though both yield []
-F19-A18  [U]  A toggleWishlist call against a document whose wishlist field is explicitly present and non-empty (e.g. ['item-3']) correctly adds/removes relative to that real array, never silently treating a present-but-nonempty field as if it were missing/defaulted
+F19-A18  [U]  A setMembership call against a document whose wishlist field is explicitly present and non-empty (e.g. ['item-3']) correctly adds/removes relative to that real array, never silently treating a present-but-nonempty field as if it were missing/defaulted
 F19-A19  [L]  Against the live Firestore project (stylobuddy-b7e46), a real test user's sign-up -> toggle two wishlist items -> edit a Profile field -> sign-out -> sign-in-again sequence round-trips correctly: both the wishlist and the Profile edit are visible together after killing and relaunching the app — deferred to the live-verification pass, documented in the task report rather than a CI-run test
 ```
 
@@ -385,16 +389,25 @@ F19-A19  [L]  Against the live Firestore project (stylobuddy-b7e46), a real test
 
 ## 13. Open questions
 
-- **Whether `toggleWishlist`'s read-then-write shape needs `runTransaction`
-  is this document's call, decided no, not a re-derivation of an unstated
-  plan decision.** The plan brief only says "toggling wishlist membership
-  persists" without specifying the write mechanism. This document decides
-  a plain read-then-targeted-write (no transaction) is correct, for the
-  same reason `ProfileCubit.togglePreference`'s Cubit-side list computation
-  needs none in F18: a double-tap race is accepted, pre-existing-class
-  risk (§12), not a correctness requirement this feature must close. A
-  reviewer who disagrees should amend §6/§11 A01-A03, not silently add a
-  transaction during implementation.
+- **Fix-round amendment (Task 6 review), recorded here per this document's
+  own "amend first" instruction**: the original design in this section
+  (superseded, see §6) had `toggleWishlist(id)` as the one write method,
+  with `FirestoreShoppingRepository` reading the document fresh and
+  independently re-deciding add-vs-remove. The reviewer found this lets
+  `ShoppingCubit`'s own add-vs-remove decision and the repository's
+  independently-re-derived decision disagree whenever the two sources of
+  truth have diverged (pre-first-snapshot, mid-rollback, or an ordinary
+  race) — so the UI could toast "saved" while the document actually ended
+  up with the item removed. The binding fix (controller ruling): the
+  repository method becomes `setMembership(id, bool add)`, taking the
+  Cubit's already-made decision explicitly rather than re-deriving it, and
+  is implemented via `FieldValue.arrayUnion`/`arrayRemove` — still a
+  one-key targeted write (§6), now also closing the former read-then-write
+  race window entirely (no `get()` before the `set()` at all). This
+  supersedes the "no `runTransaction` needed" open question below in one
+  respect worth noting explicitly: the question of whether a read-then-write
+  race needed closing is now moot, because the amended design has no read
+  step to race in the first place — not because a transaction was added.
 - **Whether `watchWishlist()` should be a `Stream<List<String>>` (this
   document's choice) or a `Stream<ShoppingState>`-shaped wrapper matching
   `ProfileRepository.watchProfile()`'s full-state-stream shape is flagged,
@@ -442,6 +455,17 @@ Status: DONE (pending [L] live-verification pass)
 [x] Gate 3  Integration
 [ ] Gate 4  Live run
 
-Assertions: 18/19 PASS (A01-A18); A19 [L] deferred to live-verification pass
+Assertions: 18/19 PASS (A01-A18, against the amended setMembership(id, bool
+add) interface — see §6/§13); A19 [L] deferred to live-verification pass
 Regression: flutter test (full suite) green; flutter analyze clean
+Fix round (Task 6 review): ShoppingRepository.toggleWishlist(id) renamed to
+setMembership(id, bool add), implemented via FieldValue.arrayUnion/
+arrayRemove — closes the Cubit-vs-repository disagreement bug and the
+read-then-write race window. ShoppingCubit.toggleWishlist's rollback is now
+a targeted single-id revert against current state (not a whole-list
+restore). A07 now proves the exact written key set via a recording
+DocumentReference wrapper. A05/A06 now go through real
+ShoppingCubit/ProfileCubit instances with unawaited calls. A11 covers both
+transition directions. §10's A09/A10/A11/A12 cross-reference typo
+corrected to A12/A13/A17.
 ```

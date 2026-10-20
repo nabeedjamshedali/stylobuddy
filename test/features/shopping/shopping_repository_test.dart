@@ -1,12 +1,49 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show SynchronousFuture;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stylobuddy/features/profile/cubit/profile_cubit.dart';
+import 'package:stylobuddy/features/profile/cubit/profile_state.dart';
 import 'package:stylobuddy/features/profile/repository/firestore_profile_repository.dart';
+import 'package:stylobuddy/features/shopping/cubit/shopping_cubit.dart';
 import 'package:stylobuddy/features/shopping/repository/firestore_shopping_repository.dart';
 import 'package:stylobuddy/features/shopping/repository/in_memory_shopping_repository.dart';
 import 'package:stylobuddy/shared/backend/firestore_service.dart';
+
+/// Bounded-polling wait (the implementer contract's documented
+/// `fake_cloud_firestore` gotcha: `pumpAndSettle()`-equivalent waits aren't
+/// available outside widget tests, and a bare microtask flush isn't always
+/// enough once two independent unawaited writes are in flight).
+Future<void> _waitUntil(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 2),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw TimeoutException('condition not met within $timeout');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
+/// Same bounded-polling strategy, for a condition that itself requires an
+/// async Firestore read (e.g. polling `userDoc(...).get()`).
+Future<void> _waitUntilAsync(
+  Future<bool> Function() condition, {
+  Duration timeout = const Duration(seconds: 2),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!await condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw TimeoutException('condition not met within $timeout');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
 
 void main() {
   group('FirestoreShoppingRepository', () {
@@ -21,9 +58,9 @@ void main() {
     });
 
     test(
-      'F19_A01 toggleWishlist adding an id not already present results in watchWishlist() emitting a list containing that id, read back off the real document',
+      'F19_A01 setMembership(id, true) adding an id not already present results in watchWishlist() emitting a list containing that id, read back off the real document',
       () async {
-        await repo.toggleWishlist('neutral-blazer');
+        await repo.setMembership('neutral-blazer', true);
         final wishlist = await repo.watchWishlist().first;
         expect(wishlist, contains('neutral-blazer'));
 
@@ -33,11 +70,11 @@ void main() {
     );
 
     test(
-      'F19_A02 toggleWishlist removing an id already present results in watchWishlist() emitting a list without that id',
+      'F19_A02 setMembership(id, false) removing an id already present results in watchWishlist() emitting a list without that id',
       () async {
-        await repo.toggleWishlist('neutral-blazer');
-        await repo.toggleWishlist('everyday-bag');
-        await repo.toggleWishlist('neutral-blazer'); // removes it
+        await repo.setMembership('neutral-blazer', true);
+        await repo.setMembership('everyday-bag', true);
+        await repo.setMembership('neutral-blazer', false); // removes it
 
         final wishlist = await repo.watchWishlist().first;
         expect(wishlist, isNot(contains('neutral-blazer')));
@@ -46,12 +83,15 @@ void main() {
     );
 
     test(
-      'F19_A03 toggleWishlist returns true when the id was added and false when it was removed',
+      'F19_A03 setMembership completes successfully for both an add and a remove of the same id, leaving the document in the expected final state each time',
       () async {
-        final added = await repo.toggleWishlist('neutral-blazer');
-        expect(added, isTrue);
-        final removed = await repo.toggleWishlist('neutral-blazer');
-        expect(removed, isFalse);
+        await repo.setMembership('neutral-blazer', true);
+        var raw = await service.userDoc('uid-1').get();
+        expect(raw.data()!['wishlist'], ['neutral-blazer']);
+
+        await repo.setMembership('neutral-blazer', false);
+        raw = await service.userDoc('uid-1').get();
+        expect(raw.data()!['wishlist'], isEmpty);
       },
     );
 
@@ -93,34 +133,73 @@ void main() {
     );
 
     test(
-      'F19_A05 toggleWishlist then a Profile field write leaves BOTH the toggled wishlist and the updated climate present together',
+      'F19_A05 a ShoppingCubit.toggleWishlist call and a ProfileCubit.setClimate call fired unawaited (not sequentially awaited repository-to-repository) against the same uid leave BOTH the toggled wishlist and the updated climate present together',
       () async {
-        final profileRepo = FirestoreProfileRepository(service, 'uid-1');
-        await repo.toggleWishlist('neutral-blazer');
-        await profileRepo.setClimate('Hot');
+        final shoppingCubit = ShoppingCubit(repository: repo);
+        final profileCubit = ProfileCubit(
+          repository: FirestoreProfileRepository(service, 'uid-1'),
+        );
+        addTearDown(shoppingCubit.close);
+        addTearDown(profileCubit.close);
 
-        final raw = await service.userDoc('uid-1').get();
-        expect(raw.data()!['wishlist'], ['neutral-blazer']);
-        expect(raw.data()!['climate'], 'Hot');
+        // Both calls are fired without awaiting the Cubit method itself —
+        // toggleWishlist/setClimate return void/bool synchronously and
+        // persist in the background, exactly as a real caller (a widget
+        // tap handler) would use them.
+        shoppingCubit.toggleWishlist('neutral-blazer');
+        profileCubit.setClimate('Hot');
+
+        await _waitUntilAsync(() async {
+          final data = (await service.userDoc('uid-1').get()).data();
+          return data != null &&
+              data['wishlist'] is List &&
+              (data['wishlist'] as List).contains('neutral-blazer') &&
+              data['climate'] == 'Hot';
+        });
+        final afterBoth = await service.userDoc('uid-1').get();
+        expect(afterBoth.data()!['climate'], 'Hot');
+        expect(afterBoth.data()!['wishlist'], ['neutral-blazer']);
       },
     );
 
     test(
-      'F19_A06 the reverse ordering (Profile write then toggleWishlist) produces the same non-clobbering result, order-independent',
+      'F19_A06 the reverse ordering (ProfileCubit.togglePreference fired unawaited, then ShoppingCubit.toggleWishlist fired unawaited) produces the same non-clobbering result, order-independent',
       () async {
-        final profileRepo = FirestoreProfileRepository(service, 'uid-1');
-        await profileRepo.setOccasions(['Travel', 'Wedding']);
-        await repo.toggleWishlist('everyday-bag');
+        final shoppingCubit = ShoppingCubit(repository: repo);
+        final profileCubit = ProfileCubit(
+          repository: FirestoreProfileRepository(service, 'uid-1'),
+        );
+        addTearDown(shoppingCubit.close);
+        addTearDown(profileCubit.close);
 
-        final raw = await service.userDoc('uid-1').get();
-        expect(raw.data()!['occasions'], ['Travel', 'Wedding']);
-        expect(raw.data()!['wishlist'], ['everyday-bag']);
+        profileCubit.togglePreference(PreferenceField.occasions, 'Travel');
+        shoppingCubit.toggleWishlist('everyday-bag');
+
+        await _waitUntil(
+          () => profileCubit.state.occasions.contains('Travel'),
+        );
+        await _waitUntilAsync(() async {
+          final data = (await service.userDoc('uid-1').get()).data();
+          return data != null &&
+              data['wishlist'] is List &&
+              (data['wishlist'] as List).contains('everyday-bag');
+        });
+        final raw = (await service.userDoc('uid-1').get()).data()!;
+        expect(raw['occasions'], contains('Travel'));
+        expect(raw['wishlist'], ['everyday-bag']);
       },
     );
 
     test(
-      'F19_A07 every FirestoreShoppingRepository write touches only the wishlist key — every pre-existing ProfileState-owned field is left byte-identical after a toggleWishlist call',
+      'F19_A07 setMembership writes a payload whose key set is exactly {wishlist} — proven by a wrapper that records the exact field keys written, not merely by comparing before/after values',
       () async {
+        final recordingDoc = _KeyRecordingDocument(
+          service.userDoc('uid-1'),
+        );
+        final recordingRepo = FirestoreShoppingRepository.withDocument(
+          recordingDoc,
+        );
+
         final profileRepo = FirestoreProfileRepository(service, 'uid-1');
         await profileRepo.updateDetails('Sam Taylor', 'sam@example.com');
         await profileRepo.setStyles(['Edgy']);
@@ -135,10 +214,18 @@ void main() {
 
         final before = (await service.userDoc('uid-1').get()).data()!;
 
-        await repo.toggleWishlist('neutral-blazer');
+        await recordingRepo.setMembership('neutral-blazer', true);
+
+        expect(
+          recordingDoc.writtenKeySets,
+          everyElement(equals({'wishlist'})),
+          reason:
+              'every call recorded through setMembership must write '
+              'exactly the wishlist key, never a whole-document payload',
+        );
+        expect(recordingDoc.writtenKeySets, isNotEmpty);
 
         final after = (await service.userDoc('uid-1').get()).data()!;
-
         for (final key in before.keys) {
           if (key == 'wishlist') continue;
           expect(
@@ -173,16 +260,14 @@ void main() {
     );
 
     test(
-      'F19_A18 a toggleWishlist call against a document whose wishlist is explicitly present and non-empty correctly adds/removes relative to that real array',
+      'F19_A18 a setMembership call against a document whose wishlist is explicitly present and non-empty correctly adds/removes relative to that real array',
       () async {
         await service.userDoc('uid-1').set({'wishlist': ['item-3']});
-        final added = await repo.toggleWishlist('item-4');
-        expect(added, isTrue);
+        await repo.setMembership('item-4', true);
         var raw = await service.userDoc('uid-1').get();
         expect(raw.data()!['wishlist'], ['item-3', 'item-4']);
 
-        final removed = await repo.toggleWishlist('item-3');
-        expect(removed, isFalse);
+        await repo.setMembership('item-3', false);
         raw = await service.userDoc('uid-1').get();
         expect(raw.data()!['wishlist'], ['item-4']);
       },
@@ -191,21 +276,17 @@ void main() {
 
   group('InMemoryShoppingRepository', () {
     test(
-      'F19_A09 toggleWishlist returns a SynchronousFuture (already-completed), verified before any pump/await',
+      'F19_A09 setMembership returns a SynchronousFuture (already-completed), verified before any pump/await',
       () {
         final repo = InMemoryShoppingRepository();
-        final future = repo.toggleWishlist('neutral-blazer');
-        expect(future, isA<SynchronousFuture<bool>>());
+        final future = repo.setMembership('neutral-blazer', true);
+        expect(future, isA<SynchronousFuture<void>>());
 
         var completedSynchronously = false;
-        var addedValue = false;
         // ignore: unawaited_futures
-        future.then((added) {
-          completedSynchronously = true;
-          addedValue = added;
-        });
+        future.then((_) => completedSynchronously = true);
         expect(completedSynchronously, isTrue);
-        expect(addedValue, isTrue);
+        expect(repo.snapshot, ['neutral-blazer']);
       },
     );
 
@@ -223,17 +304,47 @@ void main() {
     );
 
     test(
-      'F19_A08 add-or-remove semantics match today\'s ShoppingCubit-held logic: toggling adds an unsaved id and reports true, toggling again removes it and reports false',
+      'F19_A08 add-or-remove semantics match today\'s ShoppingCubit-held logic: setMembership(id, true) adds an unsaved id, setMembership(id, false) removes it',
       () async {
         final repo = InMemoryShoppingRepository();
-        final added = await repo.toggleWishlist('neutral-blazer');
-        expect(added, isTrue);
+        await repo.setMembership('neutral-blazer', true);
         expect(repo.snapshot, ['neutral-blazer']);
 
-        final removed = await repo.toggleWishlist('neutral-blazer');
-        expect(removed, isFalse);
+        await repo.setMembership('neutral-blazer', false);
         expect(repo.snapshot, isEmpty);
       },
     );
   });
+}
+
+// ignore: subtype_of_sealed_class
+/// [DocumentReference] wrapper that records the exact key set of every
+/// `set()` call it forwards, while delegating to a real (fake-Firestore)
+/// document for every other member — used only by F19_A07 to prove
+/// [FirestoreShoppingRepository.setMembership] never writes anything
+/// beyond `{'wishlist'}`. Every unexercised member intentionally throws
+/// via the default `noSuchMethod` (never called by this repository).
+class _KeyRecordingDocument implements DocumentReference<Map<String, dynamic>> {
+  _KeyRecordingDocument(this._inner);
+
+  final DocumentReference<Map<String, dynamic>> _inner;
+  final List<Set<String>> writtenKeySets = [];
+
+  @override
+  Future<void> set(Map<String, dynamic> data, [SetOptions? options]) {
+    writtenKeySets.add(data.keys.toSet());
+    return _inner.set(data, options);
+  }
+
+  @override
+  Stream<DocumentSnapshot<Map<String, dynamic>>> snapshots({
+    ListenSource source = ListenSource.defaultSource,
+    bool includeMetadataChanges = false,
+  }) => _inner.snapshots(
+    source: source,
+    includeMetadataChanges: includeMetadataChanges,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

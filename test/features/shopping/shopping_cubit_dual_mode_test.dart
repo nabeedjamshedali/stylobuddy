@@ -16,8 +16,14 @@ class _FailingShoppingRepository implements ShoppingRepository {
   final _controller = StreamController<List<String>>.broadcast();
   List<String> _wishlist = const [];
 
-  /// When `true`, the *next* toggleWishlist call fails.
+  /// When `true`, the *next* setMembership call fails (regardless of id).
   bool failing = false;
+
+  /// When set, only a setMembership call for THIS id fails (once); every
+  /// other id's call succeeds normally — used to prove the rollback is
+  /// targeted to the one id that actually failed, not the whole list, when
+  /// two different ids' calls are in flight concurrently.
+  String? failOnId;
 
   final List<String> calls = [];
 
@@ -30,17 +36,17 @@ class _FailingShoppingRepository implements ShoppingRepository {
   Stream<List<String>> watchWishlist() => _controller.stream;
 
   @override
-  Future<bool> toggleWishlist(String id) {
+  Future<void> setMembership(String id, bool add) {
     calls.add(id);
-    if (failing) {
+    if (failing || id == failOnId) {
       failing = false;
-      return Future<bool>.error(StateError('toggleWishlist($id) failed'));
+      failOnId = null;
+      return Future<void>.error(StateError('setMembership($id) failed'));
     }
-    final added = !_wishlist.contains(id);
-    _wishlist = added
-        ? [..._wishlist, id]
+    _wishlist = add
+        ? (_wishlist.contains(id) ? _wishlist : [..._wishlist, id])
         : _wishlist.where((x) => x != id).toList();
-    return Future<bool>.value(added);
+    return Future<void>.value();
   }
 }
 
@@ -63,6 +69,30 @@ void main() {
 
       expect(guestCubit.state.wishlist, isEmpty);
       expect(signedInCubit.state.wishlist, isEmpty);
+    },
+  );
+
+  test(
+    'F19_A11_reverse the signed-in-to-guest direction: a FirestoreShoppingRepository-backed ShoppingCubit with a saved item, torn down and replaced by an InMemoryShoppingRepository-backed one (F14 D3 sign-out teardown), shows an empty wishlist, never the signed-in uid\'s saved item',
+    () async {
+      final firestore = FakeFirebaseFirestore();
+      final signedInCubit = ShoppingCubit(
+        repository: FirestoreShoppingRepository(
+          FirestoreService(firestore: firestore),
+          'uid-1',
+        ),
+      );
+      signedInCubit.toggleWishlist('neutral-blazer');
+      await _settle();
+      expect(signedInCubit.state.wishlist, ['neutral-blazer']);
+      await signedInCubit.close();
+
+      // Sign-out: a brand-new guest ShoppingCubit, not the same instance —
+      // mirroring app.dart's full-teardown-and-rebuild per uid (F14 D3).
+      final guestCubit = ShoppingCubit(repository: InMemoryShoppingRepository());
+      addTearDown(guestCubit.close);
+      expect(guestCubit.state.wishlist, isEmpty);
+      expect(guestCubit.state.wishlist, isNot(contains('neutral-blazer')));
     },
   );
 
@@ -120,6 +150,42 @@ void main() {
         reason:
             'the concurrently-succeeding select call must survive the '
             'wishlist-only rollback untouched',
+      );
+    },
+  );
+
+  test(
+    'F19_A12_targeted_revert two concurrently-toggled DIFFERENT ids, where the first fails and the second succeeds, roll back only the failed id — the second id\'s successful addition survives untouched (not wiped by a whole-previous-list restore, the F17/F18 bug class this task\'s Cubit fix avoids)',
+    () async {
+      final repo = _FailingShoppingRepository();
+      final cubit = ShoppingCubit(repository: repo);
+      addTearDown(cubit.close);
+      await _settle();
+
+      repo.failOnId = 'a'; // only 'a's call fails; 'b's call succeeds
+
+      final addedA = cubit.toggleWishlist('a'); // optimistic add, then fails
+      expect(addedA, isTrue);
+      expect(cubit.state.wishlist, contains('a'));
+
+      final addedB = cubit.toggleWishlist('b'); // optimistic add, succeeds
+      expect(addedB, isTrue);
+      expect(cubit.state.wishlist, containsAll(['a', 'b']));
+
+      await _settle();
+
+      expect(
+        cubit.state.wishlist,
+        isNot(contains('a')),
+        reason: "the failed toggle of 'a' must be rolled back",
+      );
+      expect(
+        cubit.state.wishlist,
+        contains('b'),
+        reason:
+            "'b' was correctly persisted by the repository and must NOT be "
+            "silently wiped by 'a's rollback restoring a captured "
+            "whole-list-before-the-call snapshot",
       );
     },
   );

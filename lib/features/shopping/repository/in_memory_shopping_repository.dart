@@ -4,12 +4,12 @@ import 'package:flutter/foundation.dart' show SynchronousFuture;
 
 import 'shopping_repository.dart';
 
-/// Guest-mode repository (architecture D2): today's `ShoppingCubit.
-/// toggleWishlist`'s add-or-remove logic moved behind [ShoppingRepository]
-/// verbatim — same semantics, same synchronous-feeling writes
-/// (`SynchronousFuture`, per the Task 2/F15, Task 3/F16, Task 4/F17,
-/// Task 5/F18 lesson — not `async`), no network call ever constructed on
-/// this branch (F19-A09/A10).
+/// Guest-mode repository (architecture D2): `ShoppingCubit.toggleWishlist`
+/// still decides add-or-remove from its own held state (unchanged); this
+/// repository just carries out that already-decided [setMembership] call
+/// — same synchronous-feeling writes (`SynchronousFuture`, per the Task
+/// 2/F15, Task 3/F16, Task 4/F17, Task 5/F18 lesson — not `async`), no
+/// network call ever constructed on this branch (F19-A09/A10).
 ///
 /// [watchWishlist] is deliberately **single-subscription** (backed by a
 /// plain, non-broadcast `StreamController`): this repository has exactly
@@ -39,12 +39,11 @@ class InMemoryShoppingRepository implements ShoppingRepository {
   Stream<List<String>> watchWishlist() => _controller.stream;
 
   @override
-  Future<bool> toggleWishlist(String id) {
-    final added = !_wishlist.contains(id);
-    _wishlist = added
-        ? [..._wishlist, id]
+  Future<void> setMembership(String id, bool add) {
+    _wishlist = add
+        ? (_wishlist.contains(id) ? _wishlist : [..._wishlist, id])
         : _wishlist.where((x) => x != id).toList();
     _emit();
-    return SynchronousFuture(added);
+    return SynchronousFuture<void>(null);
   }
 }
