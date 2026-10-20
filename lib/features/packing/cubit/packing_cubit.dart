@@ -189,14 +189,31 @@ class PackingCubit extends Cubit<PackingState> {
         if (!isClosed) {
           // Targeted revert, evaluated against the CURRENT trips at
           // failure time, never a captured-before-the-call snapshot: a
-          // brand-new trip is removed; an edited trip is restored to its
-          // pre-edit value (if still present) — never a whole-trips-list
-          // restore, which would clobber a different, concurrently
-          // succeeding change to a DIFFERENT trip (F20-A10).
+          // brand-new trip is removed; an edited trip has ONLY the detail
+          // fields this edit touched (name/destination/start/end/type/
+          // notes/days) restored to their pre-edit values, with the
+          // CURRENT trip's `items` left completely untouched — never a
+          // whole-trip restore from `existing` (which would also restore
+          // `existing.items`, silently wiping out a concurrently
+          // succeeding items-mutating call on the SAME trip, F20-A10).
           final current = state.trips;
           final reverted = isNew
               ? current.where((t) => t.id != id).toList()
-              : [for (final t in current) t.id == id ? existing : t];
+              : [
+                  for (final t in current)
+                    if (t.id == id)
+                      t.copyWith(
+                        name: existing.name,
+                        destination: existing.destination,
+                        start: existing.start,
+                        end: existing.end,
+                        type: existing.type,
+                        notes: existing.notes,
+                        days: existing.days,
+                      )
+                    else
+                      t,
+                ];
           emit(state.copyWith(trips: reverted));
         }
       }),
@@ -247,6 +264,15 @@ class PackingCubit extends Cubit<PackingState> {
     final trip = state.selectedTrip;
     if (trip == null) return;
     final tripId = trip.id;
+    // Captured BEFORE the optimistic flip, so the rollback can restore this
+    // exact value directly — never re-flip the CURRENT value a second time,
+    // which would invert an already-server-reconciled value if a
+    // `watchTrips()` snapshot landed in the window between the optimistic
+    // flip and this call's failure (no further correction ever arrives for
+    // a Firestore transaction, since it carries no latency compensation).
+    final originalPacked = trip.items
+        .firstWhere((i) => i.key == key)
+        .packed;
     _replaceTrip(
       trip.copyWith(
         items: [
@@ -262,19 +288,21 @@ class PackingCubit extends Cubit<PackingState> {
       ) {
         _logError('toggle failed', error, stackTrace);
         if (!isClosed) {
-          // Targeted revert: re-flip ONLY this item's packed flag against
-          // the CURRENT trip at failure time, never a captured-whole-
-          // trips-list-before-the-call restore (the Task 4/F17, Task 6/F19
-          // lesson, baked in here from the start) — a concurrently-
-          // succeeding, unrelated change to a DIFFERENT trip, or a
-          // DIFFERENT item of the SAME trip, is never touched (F20-A09).
+          // Targeted revert: restore ONLY this item's captured pre-call
+          // packed value against the CURRENT trip at failure time —
+          // idempotent (safe even if nothing changed in between), never a
+          // re-flip of whatever the current value happens to be — and
+          // never a captured-whole-trips-list-before-the-call restore (the
+          // Task 4/F17, Task 6/F19 lesson) — a concurrently-succeeding,
+          // unrelated change to a DIFFERENT trip, or a DIFFERENT item of
+          // the SAME trip, is never touched (F20-A09).
           final current = _find(tripId);
           if (current == null) return;
           _replaceTrip(
             current.copyWith(
               items: [
                 for (final i in current.items)
-                  i.key == key ? i.copyWith(packed: !i.packed) : i,
+                  i.key == key ? i.copyWith(packed: originalPacked) : i,
               ],
             ),
           );
@@ -288,7 +316,17 @@ class PackingCubit extends Cubit<PackingState> {
     final trip = state.selectedTrip;
     if (trip == null) return;
     final tripId = trip.id;
-    final removed = trip.items.firstWhere((i) => i.key == key);
+    // A stale/absent key is a silent no-op (the pre-existing guest-mode
+    // behavior) rather than a thrown StateError.
+    PackingItem? found;
+    for (final i in trip.items) {
+      if (i.key == key) {
+        found = i;
+        break;
+      }
+    }
+    if (found == null) return;
+    final removed = found;
     _replaceTrip(
       trip.copyWith(items: trip.items.where((i) => i.key != key).toList()),
     );

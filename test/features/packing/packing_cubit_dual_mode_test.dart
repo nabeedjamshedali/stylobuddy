@@ -25,64 +25,83 @@ Future<void> _waitUntil(
   }
 }
 
-/// Repository double that delegates every method to a real
-/// [InMemoryPackingRepository] except whichever single named method is
-/// configured to fail — used to prove the targeted-rollback requirement
-/// (F20-A09/A10) without needing a real Firestore transaction failure.
-class _SelectivelyFailingRepository implements PackingRepository {
-  _SelectivelyFailingRepository(this._delegate);
+/// Repository double whose [watchTrips] deliberately NEVER emits
+/// (`Stream.empty()`) — used to prove the targeted-rollback requirements
+/// (F20-A09/A10) without the confound the reviewer identified in the first
+/// round: delegating to a real [InMemoryPackingRepository] meant its
+/// write-driven re-emission reset `PackingCubit.state` regardless of what
+/// the rollback code under test actually did (disabling the rollback
+/// entirely, or substituting a whole-list restore, both still passed). By
+/// construction, the *only* thing that can ever change
+/// `PackingCubit.state.trips` while this double backs it is (a) this
+/// Cubit's own optimistic update, or (b) this Cubit's own targeted
+/// rollback on a failure — never a snapshot "arriving from the backend",
+/// because none ever does.
+///
+/// [saveTrip]'s edit branch (`isNew: false`) fails, after [failDelay], for
+/// any trip id in [failingSaveTripIds]; every other call succeeds
+/// immediately with no side effect on any stream.
+///
+/// [toggle] fails, after [failDelay], the next N times it is called for a
+/// given `tripId:key` pair, where N is set via [failToggleOnce] (or
+/// [failToggleTimes]) — this lets a test arm exactly the FIRST of two
+/// rapid, same-key toggle calls to fail while a SECOND call for the same
+/// key succeeds immediately, deterministically landing before the first
+/// call's delayed failure/rollback fires.
+class _ControllableFailRepository implements PackingRepository {
+  _ControllableFailRepository({
+    this.failDelay = const Duration(milliseconds: 40),
+  });
 
-  final InMemoryPackingRepository _delegate;
+  final Duration failDelay;
+  final Set<String> failingSaveTripIds = {};
+  final Map<String, int> _toggleFailuresRemaining = {};
 
-  /// Mutable on purpose: a test builds its fixture data through this
-  /// repository BEFORE arming the specific call it wants to fail (adding
-  /// the relevant key here), since [InMemoryPackingRepository.watchTrips]
-  /// is single-subscription and so cannot be re-subscribed to by a second
-  /// Cubit instance.
-  final Set<String> failing = {};
+  void failToggleOnce(String tripId, String key) =>
+      failToggleTimes(tripId, key, 1);
 
-  Future<void> _maybeFail(String name, Future<void> Function() action) {
-    if (failing.contains(name)) {
-      return Future<void>.error(Exception('$name failed (offline)'));
+  void failToggleTimes(String tripId, String key, int times) =>
+      _toggleFailuresRemaining['$tripId:$key'] = times;
+
+  @override
+  Stream<List<Trip>> watchTrips() => const Stream.empty();
+
+  @override
+  Future<void> saveTrip(Trip trip, {required bool isNew}) async {
+    if (!isNew && failingSaveTripIds.contains(trip.id)) {
+      await Future<void>.delayed(failDelay);
+      throw Exception('saveTrip failed (offline)');
     }
-    return action();
   }
 
   @override
-  Stream<List<Trip>> watchTrips() => _delegate.watchTrips();
+  Future<void> toggle(String tripId, String key) async {
+    final mapKey = '$tripId:$key';
+    final remaining = _toggleFailuresRemaining[mapKey] ?? 0;
+    if (remaining > 0) {
+      _toggleFailuresRemaining[mapKey] = remaining - 1;
+      await Future<void>.delayed(failDelay);
+      throw Exception('toggle failed (offline)');
+    }
+  }
 
   @override
-  Future<void> saveTrip(Trip trip, {required bool isNew}) =>
-      _maybeFail('saveTrip', () => _delegate.saveTrip(trip, isNew: isNew));
+  Future<void> removeItem(String tripId, String key) async {}
 
   @override
-  Future<void> toggle(String tripId, String key) =>
-      _maybeFail('toggle-$tripId', () => _delegate.toggle(tripId, key));
+  Future<void> addWardrobe(String tripId, PackingItem item) async {}
 
   @override
-  Future<void> removeItem(String tripId, String key) =>
-      _maybeFail('removeItem', () => _delegate.removeItem(tripId, key));
+  Future<void> addCustom(String tripId, PackingItem item) async {}
 
   @override
-  Future<void> addWardrobe(String tripId, PackingItem item) => _maybeFail(
-    'addWardrobe',
-    () => _delegate.addWardrobe(tripId, item),
-  );
+  Future<void> generateChecklist(
+    String tripId,
+    List<PackingItem> suggested,
+  ) async {}
 
   @override
-  Future<void> addCustom(String tripId, PackingItem item) =>
-      _maybeFail('addCustom', () => _delegate.addCustom(tripId, item));
-
-  @override
-  Future<void> generateChecklist(String tripId, List<PackingItem> suggested) =>
-      _maybeFail(
-        'generateChecklist',
-        () => _delegate.generateChecklist(tripId, suggested),
-      );
-
-  @override
-  Future<void> deleteTrip(String tripId) =>
-      _maybeFail('deleteTrip', () => _delegate.deleteTrip(tripId));
+  Future<void> deleteTrip(String tripId) async {}
 }
 
 /// Always-rejecting repository double, used to prove F20-A14: a
@@ -122,15 +141,48 @@ class _ThrowingPackingRepository implements PackingRepository {
 
 void main() {
   test(
-    'F20_A11_cubit PackingCubit constructed with InMemoryPackingRepository '
-    'vs FirestorePackingRepository is a different repository object type, '
-    'not just different data — covers the signed-in-to-guest direction '
-    '(both torn down and rebuilt identically per F14 D3)',
+    'F20_A04 PackingCubit() with no repository argument defaults to '
+    'InMemoryPackingRepository, preserving the pre-existing guest-mode '
+    'behavior this task must leave unchanged — the full pre-existing '
+    'packing suite (packing_cubit_test.dart, packing_screens_test.dart) '
+    'exercises exactly this default construction path, unmodified, '
+    'against this same default',
+    () {
+      final cubit = PackingCubit();
+      addTearDown(cubit.close);
+      // Pre-existing, pre-this-task default: a guest's very first frame
+      // shows zero trips, synchronously (no repository argument supplied).
+      expect(cubit.state.trips, isEmpty);
+      expect(cubit.state.selectedTripId, isNull);
+    },
+  );
+
+  test(
+    'F20_A11_cubit a signed-in PackingCubit (FirestorePackingRepository) '
+    'shows a trip seeded directly in that uid\'s Firestore data, while a '
+    'guest PackingCubit (InMemoryPackingRepository) never shows it — not '
+    'merely "different data from each other", but the specific seeded '
+    'document only ever surfacing through the signed-in Cubit',
     () async {
+      final firestore = FakeFirebaseFirestore();
+      await firestore
+          .collection('users/uid-1/packingTrips')
+          .doc('seeded-trip')
+          .set({
+            'id': 'seeded-trip',
+            'name': 'Seeded Firestore Trip',
+            'destination': 'Rome',
+            'start': '2026-12-01',
+            'end': '2026-12-05',
+            'type': 'Vacation',
+            'notes': '',
+            'days': 5,
+            'items': <Map<String, dynamic>>[],
+          });
+
       final guestCubit = PackingCubit(repository: InMemoryPackingRepository());
       addTearDown(guestCubit.close);
 
-      final firestore = FakeFirebaseFirestore();
       final signedInCubit = PackingCubit(
         repository: FirestorePackingRepository(
           FirestoreService(firestore: firestore),
@@ -139,14 +191,16 @@ void main() {
       );
       addTearDown(signedInCubit.close);
 
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await _waitUntil(() => signedInCubit.state.trips.isNotEmpty);
 
-      expect(guestCubit.state.trips, isEmpty);
-      expect(signedInCubit.state.trips, isEmpty);
-      // Different object types, proven by type-checking each Cubit's own
-      // repository field indirectly: constructing with each repository and
-      // confirming no crash / no shared state is the public-surface proxy
-      // available here (the repository field itself is private).
+      expect(
+        guestCubit.state.trips.any((t) => t.id == 'seeded-trip'),
+        isFalse,
+      );
+      expect(
+        signedInCubit.state.trips.any((t) => t.id == 'seeded-trip'),
+        isTrue,
+      );
     },
   );
 
@@ -154,10 +208,11 @@ void main() {
     'F20_A09 PackingCubit.toggle optimistically updates state before the '
     'repository Future resolves, then rolls back ONLY that one item\'s '
     'packed flag on that one trip when the call fails — proven confound-free '
-    'against a second, concurrently-succeeding toggle on a DIFFERENT trip',
+    '(the repository double\'s watchTrips() never emits, so nothing but the '
+    'Cubit\'s own optimistic update/rollback can ever change state) against '
+    'a second, concurrently-succeeding toggle on a DIFFERENT trip',
     () async {
-      final delegate = InMemoryPackingRepository();
-      final repository = _SelectivelyFailingRepository(delegate);
+      final repository = _ControllableFailRepository();
       final cubit = PackingCubit(repository: repository);
       addTearDown(cubit.close);
 
@@ -208,7 +263,7 @@ void main() {
 
       // Arm the failure only now, after both trips' fixture data has
       // already been written successfully.
-      repository.failing.add('toggle-$trip1Id');
+      repository.failToggleOnce(trip1Id, key1);
 
       // Toggle trip 1's item (will fail) and trip 2's item (will succeed).
       cubit.selectTrip(trip1Id);
@@ -260,13 +315,82 @@ void main() {
   );
 
   test(
-    'F20_A10 an interleaved saveDraft (edit) call that will fail, '
-    'concurrent with a different trip\'s successful toggle, reverts only '
-    'the failed trip\'s detail fields — the other trip\'s concurrently-'
-    'succeeding items change survives untouched',
+    'F20_A09_captured_value toggle\'s rollback restores the value CAPTURED '
+    'before the failing call, not a re-flip of whatever the current value '
+    'happens to be at failure time — proven by a second toggle of the SAME '
+    'key landing and succeeding before the first (slower, failing) call\'s '
+    'rollback fires: the old `packed: !i.packed` re-flip would wrongly '
+    'invert the second call\'s already-correct result, while restoring the '
+    'captured original value is a correct no-op here',
     () async {
-      final delegate = InMemoryPackingRepository();
-      final repository = _SelectivelyFailingRepository(delegate);
+      final repository = _ControllableFailRepository(
+        failDelay: const Duration(milliseconds: 40),
+      );
+      final cubit = PackingCubit(repository: repository);
+      addTearDown(cubit.close);
+
+      cubit.newTrip();
+      cubit.saveDraft(
+        name: 'Trip 1',
+        destination: '',
+        start: '2026-11-01',
+        end: '2026-11-02',
+        type: 'Vacation',
+        notes: '',
+      );
+      final tripId = cubit.state.selectedTripId!;
+      cubit.generateChecklist(SeedData.items);
+      final key = cubit.state.selectedTrip!.items.first.key;
+      final originalPacked = cubit.state.selectedTrip!.items.first.packed;
+      expect(originalPacked, isFalse);
+
+      // Only the FIRST call to toggle(tripId, key) fails (after a delay);
+      // any subsequent call for the same key succeeds immediately.
+      repository.failToggleOnce(tripId, key);
+
+      cubit.toggle(key); // call 1: false -> true, will fail after 40ms.
+      expect(
+        cubit.state.selectedTrip!.items
+            .firstWhere((i) => i.key == key)
+            .packed,
+        isTrue,
+      );
+
+      cubit.toggle(key); // call 2: true -> false, succeeds immediately.
+      expect(
+        cubit.state.selectedTrip!.items
+            .firstWhere((i) => i.key == key)
+            .packed,
+        isFalse,
+      );
+
+      // Wait comfortably past call 1's failDelay so its rollback has
+      // unambiguously already run.
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      // Must still be false: call 1's captured pre-call value was false.
+      // The old `packed: !i.packed` re-flip would instead invert the
+      // CURRENT value (false, from call 2's successful result) to true —
+      // silently undoing call 2's already-correct, already-succeeded
+      // change with no further correction ever arriving.
+      expect(
+        cubit.state.trips
+            .firstWhere((t) => t.id == tripId)
+            .items
+            .firstWhere((i) => i.key == key)
+            .packed,
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'F20_A10 an interleaved saveDraft (edit) call that will fail, '
+    'concurrent with a DIFFERENT trip\'s successful toggle, reverts only '
+    'the failed trip\'s detail fields — the other trip\'s concurrently-'
+    'succeeding items change survives untouched — proven confound-free',
+    () async {
+      final repository = _ControllableFailRepository();
       final cubit = PackingCubit(repository: repository);
       addTearDown(cubit.close);
 
@@ -302,7 +426,7 @@ void main() {
 
       // Arm the failure only now, after both trips' fixture data has
       // already been written successfully.
-      repository.failing.add('saveTrip');
+      repository.failingSaveTripIds.add(trip1Id);
 
       // Edit trip 1 (will fail) and toggle trip 2's item (succeeds) at the
       // same time.
@@ -329,6 +453,68 @@ void main() {
 
       final trip2After = cubit.state.trips.firstWhere((t) => t.id == trip2Id);
       expect(trip2After.items.firstWhere((i) => i.key == key2).packed, isTrue);
+    },
+  );
+
+  test(
+    'F20_A10_same_trip a failed saveDraft (edit) on trip 1, concurrent with '
+    'a SUCCESSFUL toggle on that SAME trip 1, reverts only the edit\'s '
+    'detail fields and leaves trip 1\'s items (including the concurrent '
+    'toggle) completely untouched — the whole-trip-restore bug class '
+    'reproduced: the old `existing` (captured BEFORE the edit call, so '
+    'before the toggle too) would wipe the toggle out entirely',
+    () async {
+      final repository = _ControllableFailRepository();
+      final cubit = PackingCubit(repository: repository);
+      addTearDown(cubit.close);
+
+      cubit.newTrip();
+      cubit.saveDraft(
+        name: 'Trip 1',
+        destination: 'Original',
+        start: '2026-11-01',
+        end: '2026-11-02',
+        type: 'Vacation',
+        notes: '',
+      );
+      final tripId = cubit.state.selectedTripId!;
+      cubit.generateChecklist(SeedData.items);
+      final key = cubit.state.selectedTrip!.items.first.key;
+      final beforePacked = cubit.state.selectedTrip!.items.first.packed;
+
+      repository.failingSaveTripIds.add(tripId);
+
+      // The edit call captures `existing` (trip 1, with its current items)
+      // synchronously here, before the concurrent toggle below ever runs.
+      cubit.editTrip(tripId);
+      cubit.saveDraft(
+        name: 'Trip 1 renamed',
+        destination: 'Changed',
+        start: '2026-11-01',
+        end: '2026-11-02',
+        type: 'Vacation',
+        notes: '',
+      );
+      // Still selected on the same trip — toggle its item right after,
+      // before the edit's delayed failure/rollback fires.
+      cubit.selectTrip(tripId);
+      cubit.toggle(key);
+      expect(
+        cubit.state.selectedTrip!.items.firstWhere((i) => i.key == key).packed,
+        !beforePacked,
+      );
+
+      await _waitUntil(
+        () => cubit.state.trips.firstWhere((t) => t.id == tripId).name == 'Trip 1',
+      );
+
+      final after = cubit.state.trips.firstWhere((t) => t.id == tripId);
+      // The edit's detail fields are reverted...
+      expect(after.destination, 'Original');
+      // ...but the concurrent, already-succeeded toggle on this SAME trip
+      // must survive the edit's rollback — never wiped by restoring the
+      // whole pre-edit `existing` trip (items included).
+      expect(after.items.firstWhere((i) => i.key == key).packed, !beforePacked);
     },
   );
 
@@ -417,6 +603,70 @@ void main() {
 
       expect(errors, isEmpty);
       expect(cubit.isClosed, isFalse);
+    },
+  );
+
+  test(
+    'F20_A08_cubit saveDraft (edit) and toggle issued THROUGH PackingCubit '
+    '(not repository-to-repository) concurrently against the SAME trip '
+    'both persist: a fresh FirestorePackingRepository instance, reading '
+    'directly off the same backing Firestore data, shows the edited detail '
+    'fields AND the toggled item together',
+    () async {
+      final firestore = FakeFirebaseFirestore();
+      final repository = FirestorePackingRepository(
+        FirestoreService(firestore: firestore),
+        'uid-1',
+      );
+      final cubit = PackingCubit(repository: repository);
+      addTearDown(cubit.close);
+
+      cubit.newTrip();
+      cubit.saveDraft(
+        name: 'Lisbon getaway',
+        destination: 'Lisbon',
+        start: '2026-11-01',
+        end: '2026-11-03',
+        type: 'Vacation',
+        notes: '',
+      );
+      final tripId = cubit.state.selectedTripId!;
+      await _waitUntil(() => cubit.state.trips.isNotEmpty);
+
+      cubit.generateChecklist(SeedData.items);
+      // Let generateChecklist's own transaction land before arming the
+      // concurrent edit+toggle below.
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final key = cubit.state.selectedTrip!.items.first.key;
+
+      // Concurrent, both fire-and-forget from the Cubit's perspective:
+      // one edits name/destination, the other toggles an item.
+      cubit.editTrip(tripId);
+      cubit.saveDraft(
+        name: 'Lisbon renamed',
+        destination: 'Porto',
+        start: '2026-11-01',
+        end: '2026-11-03',
+        type: 'Vacation',
+        notes: '',
+      );
+      cubit.selectTrip(tripId);
+      cubit.toggle(key);
+
+      // Give both underlying Firestore writes time to land, then read
+      // directly off the backing Firestore data via a brand-new repository
+      // instance — proving the ACTUAL persisted document, not merely the
+      // Cubit's own optimistic local state.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final freshRepository = FirestorePackingRepository(
+        FirestoreService(firestore: firestore),
+        'uid-1',
+      );
+      final trips = await freshRepository.watchTrips().first;
+      final trip = trips.single;
+      expect(trip.name, 'Lisbon renamed');
+      expect(trip.destination, 'Porto');
+      expect(trip.items.firstWhere((i) => i.key == key).packed, isTrue);
     },
   );
 }

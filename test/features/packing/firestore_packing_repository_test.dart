@@ -154,7 +154,10 @@ void main() {
   test(
     'F20_A06 toggle/removeItem/addWardrobe/addCustom/generateChecklist are '
     'each implemented via runTransaction, not a bare get() followed by a '
-    'separate set()/update()',
+    'separate set()/update() — proven by checking each method\'s OWN body '
+    '(not just file-wide presence of the strings) actually delegates to '
+    'the shared _mutateItems helper, which is itself the one that wraps '
+    'runTransaction',
     () {
       final file = File(
         'lib/features/packing/repository/firestore_packing_repository.dart',
@@ -162,8 +165,20 @@ void main() {
       final content = file.readAsStringSync();
       final mutateStart = content.indexOf('Future<void> _mutateItems(');
       expect(mutateStart, greaterThan(-1), reason: '_mutateItems not found');
-      final body = content.substring(mutateStart);
-      expect(body.contains('runTransaction'), isTrue);
+      final mutateEnd = content.indexOf(
+        '@override',
+        mutateStart + 'Future<void> _mutateItems('.length,
+      );
+      final mutateBody = content.substring(
+        mutateStart,
+        mutateEnd == -1 ? content.length : mutateEnd,
+      );
+      expect(mutateBody.contains('runTransaction'), isTrue);
+
+      // For each of the five methods, extract ONLY that method's own body
+      // (from its signature up to the next method's '@override') and
+      // check THAT substring calls _mutateItems( — not merely that the
+      // string appears somewhere in the whole file.
       for (final method in [
         'Future<void> toggle(',
         'Future<void> removeItem(',
@@ -171,8 +186,19 @@ void main() {
         'Future<void> addCustom(',
         'Future<void> generateChecklist(',
       ]) {
-        expect(content.contains(method), isTrue, reason: '$method missing');
-        expect(content.contains('_mutateItems('), isTrue);
+        final start = content.indexOf(method);
+        expect(start, greaterThan(-1), reason: '$method missing');
+        final nextOverride = content.indexOf(
+          '@override',
+          start + method.length,
+        );
+        final end = nextOverride == -1 ? content.length : nextOverride;
+        final body = content.substring(start, end);
+        expect(
+          body.contains('_mutateItems('),
+          isTrue,
+          reason: '$method does not delegate to _mutateItems',
+        );
       }
     },
   );
@@ -209,9 +235,11 @@ void main() {
   );
 
   test(
-    'F20_A08 saveTrip (edit branch) and toggle issued concurrently against '
-    'the SAME trip document both land: a final read shows the edited '
-    'detail fields AND the toggled item together',
+    'F20_A08_repository saveTrip (edit branch) and toggle issued directly '
+    'against the SAME trip document (repository-level, complementing the '
+    'full through-PackingCubit proof in packing_cubit_dual_mode_test.dart\'s '
+    'F20_A08_cubit) both land: a final read shows the edited detail fields '
+    'AND the toggled item together',
     () async {
       await repository.saveTrip(
         makeTrip(

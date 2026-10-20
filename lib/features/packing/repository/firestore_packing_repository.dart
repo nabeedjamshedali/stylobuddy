@@ -144,7 +144,14 @@ class FirestorePackingRepository implements PackingRepository {
       // call from another device landing first) is a silent no-op, not a
       // crash (F20-A15, F16-A13/A14 precedent).
       if (current == null) return;
-      tx.set(doc, current.copyWith(items: transform(current.items)));
+      // Narrower write than a whole-document `tx.set`: only the 'items'
+      // key is sent, matching this helper's own "write back only items"
+      // contract — other fields (name/destination/etc.) are never part of
+      // this write's payload, so a concurrent saveTrip() edit-branch merge
+      // on a disjoint key-set can never be clobbered by this transaction.
+      tx.update(doc, {
+        'items': _itemsToFirestore(transform(current.items)),
+      });
     });
   }
 

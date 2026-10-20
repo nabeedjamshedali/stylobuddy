@@ -30,15 +30,24 @@ class Trip {
   final int days;
   final List<PackingItem> items;
 
-  Trip copyWith({List<PackingItem>? items}) => Trip(
+  Trip copyWith({
+    String? name,
+    String? destination,
+    String? start,
+    String? end,
+    String? type,
+    String? notes,
+    int? days,
+    List<PackingItem>? items,
+  }) => Trip(
     id: id,
-    name: name,
-    destination: destination,
-    start: start,
-    end: end,
-    type: type,
-    notes: notes,
-    days: days,
+    name: name ?? this.name,
+    destination: destination ?? this.destination,
+    start: start ?? this.start,
+    end: end ?? this.end,
+    type: type ?? this.type,
+    notes: notes ?? this.notes,
+    days: days ?? this.days,
     items: items ?? this.items,
   );
 }

@@ -25,7 +25,7 @@
 > `docs/superpowers/specs/2026-10-19-backend-architecture.md` (D2, D4, D6)
 > and `docs/superpowers/specs/2026-10-19-firestore-schema.md` §6.
 
-**Status:** NOT STARTED · **Milestone:** 2 · **Depends on:** F14
+**Status:** IN PROGRESS (A20 live-verification pending) · **Milestone:** 2 · **Depends on:** F14
 
 ---
 
@@ -239,80 +239,91 @@ Sign-out then sign-in-again as a different (or the same) user:
 
 ## 6. Interface surface
 
+**As actually implemented** (per the binding controller ruling recorded in
+the completion block below, which supersedes this section's original
+`createTrip`/`updateTripDetails`/`mutateItems` draft shape — kept visible
+in §13's "Open questions" purely as the historical record of why the
+shape changed):
+
 ```text
 abstract class PackingRepository
   Stream<List<Trip>> watchTrips()                                    both impls
-  Future<void> createTrip(Trip trip)                                 both impls
-  Future<void> updateTripDetails(String tripId, {
-    required String name, required String destination,
-    required String start, required String end, required String type,
-    required String notes, required int days})                      both impls
-  Future<void> mutateItems(String tripId,
-    List<PackingItem> Function(List<PackingItem> current) transform) both impls
-  Future<void> deleteTrip(String tripId)                             both impls
+  Future<void> saveTrip(Trip trip, {required bool isNew})             both impls
+  Future<void> toggle(String tripId, String key)                      both impls
+  Future<void> removeItem(String tripId, String key)                  both impls
+  Future<void> addWardrobe(String tripId, PackingItem item)           both impls
+  Future<void> addCustom(String tripId, PackingItem item)              both impls
+  Future<void> generateChecklist(String tripId,
+    List<PackingItem> suggested)                                      both impls
+  Future<void> deleteTrip(String tripId)                              both impls
 
 class InMemoryPackingRepository implements PackingRepository   guest mode
 class FirestorePackingRepository implements PackingRepository  signed-in mode
 ```
 
-**Why `updateTripDetails` is a separate method from `createTrip`, and why
-it excludes `items` from its write (binding, decided here, not left to the
-implementer):** `PackingCubit.saveDraft`'s existing edit branch already
-preserves the trip's current items untouched (`existing?.items ?? const
-[]`) — it never intends to write a new items value. If
-`updateTripDetails` wrote the whole `Trip` document (including a possibly
-stale, Cubit-held copy of `items`), it would race and potentially clobber
-a concurrently-in-flight `mutateItems` call (a toggle made moments before
-opening the edit form, whose Firestore write is still in flight) the same
-way F19 §6/§10's non-clobber requirement protects `wishlist` against
-`ProfileState` writes on a shared document — except here the collision is
-between two writes to the *same* document's *disjoint* field sets rather
-than two different documents. `updateTripDetails` is therefore a targeted
-merge-set (`_doc.set({name, destination, start, end, type, notes, days},
-SetOptions(merge: true))`) that never includes the `items` key, making the
-two write paths (`updateTripDetails` and `mutateItems`) provably
+**Why `saveTrip`'s edit branch (`isNew: false`) is a separate write path
+from its create branch, and why it excludes `items` from its write
+(binding, decided here, not left to the implementer):**
+`PackingCubit.saveDraft`'s existing edit branch already preserves the
+trip's current items untouched (`existing?.items ?? const []`) — it never
+intends to write a new items value. If the edit branch wrote the whole
+`Trip` document (including a possibly stale, Cubit-held copy of `items`),
+it would race and potentially clobber a concurrently-in-flight items-
+mutating call (a toggle made moments before opening the edit form, whose
+Firestore write is still in flight) the same way F19 §6/§10's non-clobber
+requirement protects `wishlist` against `ProfileState` writes on a shared
+document — except here the collision is between two writes to the *same*
+document's *disjoint* field sets rather than two different documents.
+`saveTrip`'s edit branch is therefore a targeted merge-set (`_rawTrips.doc
+(id).set({name, destination, start, end, type, notes, days}, SetOptions
+(merge: true))`) that never includes the `items` key, making the two
+write paths (the edit branch and the five items-mutating methods) provably
 non-conflicting by construction (§11 A08).
 
-**Why `mutateItems` is transaction-based and takes a transform closure
-rather than a precomputed final list (binding, decided here per the
-brief's explicit instruction not to leave this to the implementer, given
-the Tasks 2/3 (F15/F16) `runTransaction` lesson):** every Cubit-side
-operation that changes `items` (`toggle`, `removeItem`, `addWardrobe`,
-`addCustom`, `generateChecklist`) is a read-modify-write against the SAME
-document's `items` array — exactly the shape F16 §6's binding requirement
-names ("`logWear`/`removeWear` are read-modify-write operations... both
-implemented with Firestore's `runTransaction`, never a bare `get()`
-followed by a separate `set()`/`update()`"). Unlike F19's `setMembership`
-(where `FieldValue.arrayUnion`/`arrayRemove` on a flat `array<string>` has
-no read step to race because membership of a scalar value is idempotent
-by construction), `items` is an `array<map>` where the needed change is
-"flip one map's `packed` field," "drop one map by key," "append a map if
-no existing map has this `wardrobeId`," or "replace the array only if
-currently empty" — none of which Firestore's `arrayUnion`/`arrayRemove`
-can express (they match whole-map-value equality, not a field within a
-map, and cannot express "only if empty"). A plain `get()` then `set()`
-from the Cubit's own held `state.trips` copy would silently lose a
-concurrent device's prior write to the same trip's `items` the same way a
-bare get-then-set would for `Outfit.worn` (F16 §6/§13). `mutateItems`
-therefore runs a `runTransaction` that reads the target trip document's
-`items` field fresh from the server inside the transaction, applies the
-caller-supplied pure `transform` to that fresh value, and writes the
-result back in the same transaction — closing the read-modify-write race
-the same way F16's `logWear`/`removeWear` do, generalized to one method
-since every one of this feature's five items-mutating operations is the
-same shape of "apply a pure transform to the server's current array" (unlike
-F16, where `logWear` and `removeWear` are different enough transforms —
-increment vs. decrement-and-delete — to warrant two named methods; here one
-parameterized method suffices because every call site already knows its
-own pure, small transform and none needs a second side-effecting write
-alongside it the way F16's methods also write a `wearEvents` document).
+**Why `toggle`/`removeItem`/`addWardrobe`/`addCustom`/`generateChecklist`
+are each transaction-based, sharing a private `_mutateItems` helper, rather
+than a precomputed final list written with a bare set/update (binding,
+decided here per the brief's explicit instruction not to leave this to the
+implementer, given the Tasks 2/3 (F15/F16) `runTransaction` lesson):**
+every one of these five operations is a read-modify-write against the
+SAME document's `items` array — exactly the shape F16 §6's binding
+requirement names ("`logWear`/`removeWear` are read-modify-write
+operations... both implemented with Firestore's `runTransaction`, never a
+bare `get()` followed by a separate `set()`/`update()`"). Unlike F19's
+`setMembership` (where `FieldValue.arrayUnion`/`arrayRemove` on a flat
+`array<string>` has no read step to race because membership of a scalar
+value is idempotent by construction), `items` is an `array<map>` where the
+needed change is "flip one map's `packed` field," "drop one map by key,"
+"append a map if no existing map has this `wardrobeId`," or "replace the
+array only if currently empty" — none of which Firestore's
+`arrayUnion`/`arrayRemove` can express (they match whole-map-value
+equality, not a field within a map, and cannot express "only if empty"). A
+plain `get()` then `set()` from the Cubit's own held `state.trips` copy
+would silently lose a concurrent device's prior write to the same trip's
+`items` the same way a bare get-then-set would for `Outfit.worn` (F16
+§6/§13). Each of the five methods therefore delegates to a shared private
+`_mutateItems` helper that runs a `runTransaction`, reads the target trip
+document's `items` field fresh from the server inside the transaction,
+applies that method's own pure transform to that fresh value, and writes
+only the `items` key back in the same transaction (`tx.update(doc,
+{'items': ...})`, never a whole-document `tx.set`) — closing the
+read-modify-write race the same way F16's `logWear`/`removeWear` do,
+generalized to one shared helper since every one of this feature's five
+items-mutating operations is the same shape of "apply a pure transform to
+the server's current array" (unlike F16, where `logWear` and `removeWear`
+are different enough transforms — increment vs. decrement-and-delete — to
+warrant two named methods; here one shared helper suffices because every
+call site already knows its own pure, small transform and none needs a
+second side-effecting write alongside it the way F16's methods also write
+a `wearEvents` document).
 
 `PackingCubit`'s five items-mutating methods (`toggle`, `removeItem`,
 `addWardrobe`, `addCustom`, `generateChecklist`) each build their own
 transform closure (matching today's exact pure logic in
-`packing_cubit.dart` lines 134-188 verbatim) and pass it to
-`mutateItems`; they do not pre-decide the final array on cached state the
-way `ShoppingCubit.toggleWishlist` pre-decides add-vs-remove for
+`packing_cubit.dart` verbatim) and the repository's own matching method
+applies that same transform shape fresh against the server read; they do
+not pre-decide the final array on cached state the way
+`ShoppingCubit.toggleWishlist` pre-decides add-vs-remove for
 `setMembership` — this is a deliberate, named difference from F19's
 resolved design, not an inconsistency: F19's bug was the repository
 re-deriving a decision the Cubit had already made from its own held
@@ -415,21 +426,21 @@ is needed this task.
 ## 11. Validation assertions
 
 ```
-F20-A01  [U]  FirestorePackingRepository.createTrip writes a trip document whose id, name, destination, start, end, type, notes, and days all round-trip exactly through watchTrips(), with items stored as [] — written and read as one whole document, not a subcollection (confirmed by asserting no document exists at any users/{uid}/packingTrips/{tripId}/items/* path)
+F20-A01  [U]  FirestorePackingRepository.saveTrip (isNew: true) writes a trip document whose id, name, destination, start, end, type, notes, and days all round-trip exactly through watchTrips(), with items stored as [] — written and read as one whole document, not a subcollection (confirmed by asserting no document exists at any users/{uid}/packingTrips/{tripId}/items/* path)
 F20-A02  [U]  Firestore document ID for a created trip is exactly trip.id.toString() (architecture D4) — for packing's String-typed Trip.id this is the id value itself, verified by reading the document directly off that path rather than only through watchTrips()
-F20-A03  [I]  A signed-in user's trip, created and persisted via FirestorePackingRepository.createTrip, is read back correctly by a FRESH PackingCubit/FirestorePackingRepository instance constructed afterward against the same backing Firestore data (never the same in-memory Dart objects) — the genuine app-restart simulation proving the gap named in §1 is actually closed, not merely that watchTrips() exists
+F20-A03  [I]  A signed-in user's trip, created and persisted via FirestorePackingRepository.saveTrip (isNew: true), is read back correctly by a FRESH PackingCubit/FirestorePackingRepository instance constructed afterward against the same backing Firestore data (never the same in-memory Dart objects) — the genuine app-restart simulation proving the gap named in §1 is actually closed, not merely that watchTrips() exists
 F20-A04  [U]  Guest mode (InMemoryPackingRepository) behavior, including the ADR-002 root-provider survive-navigation fix, is completely unchanged: the full pre-existing packing test suite (test/features/packing/packing_cubit_test.dart and packing_screens_test.dart) passes unmodified against PackingCubit constructed with InMemoryPackingRepository (the default), with zero existing test file touched and zero existing assertion edited to accommodate this task
-F20-A05  [U]  FirestorePackingRepository.mutateItems toggling a known item's packed flag reads the trip document's items array fresh via runTransaction and writes back only that item's packed field flipped, leaving every other item in the array untouched — verified by mutating the stored document's items between the Cubit's local read and the transaction committing, confirming the transaction result reflects the SERVER's value at commit time, not a cached argument (same proof shape as F16-A08)
-F20-A06  [U]  FirestorePackingRepository.mutateItems/createTrip/updateTripDetails/deleteTrip are each implemented via runTransaction (mutateItems) or a targeted merge-set/delete (the other three, which have no read-modify-write shape) — a test double that tracks whether mutateItems ever calls a bare get() followed by a separate set()/update() without an enclosing transaction fails the test (same structural-check shape as F16-A09)
-F20-A07  [U]  generateChecklist's transform (passed to mutateItems) fills items only when the transaction's own fresh server read of items is empty; run twice in sequence against the same trip, the second run leaves items and every packed flag exactly as the first run left them — re-verifying F10-A13 at the Firestore-transaction layer, not just in the in-memory Cubit
-F20-A08  [I]  updateTripDetails and mutateItems issued concurrently (unawaited) against the SAME trip document — one editing name/destination, the other toggling an item — both land: a final read shows the edited detail fields AND the toggled item together, neither write dropped by the other (the non-clobber proof named in §6, tested directly against real repository calls through PackingCubit, not repository-to-repository)
+F20-A05  [U]  FirestorePackingRepository.toggle (via the shared _mutateItems helper) toggling a known item's packed flag reads the trip document's items array fresh via runTransaction and writes back only that item's packed field flipped, leaving every other item in the array untouched — verified by mutating the stored document's items between the Cubit's local read and the transaction committing, confirming the transaction result reflects the SERVER's value at commit time, not a cached argument (same proof shape as F16-A08)
+F20-A06  [U]  FirestorePackingRepository.toggle/removeItem/addWardrobe/addCustom/generateChecklist are each implemented via the shared _mutateItems helper's runTransaction, and saveTrip/deleteTrip via a targeted merge-set/delete (the two that have no read-modify-write shape) — a check of each method's own body confirms it delegates to _mutateItems, never a bare get() followed by a separate set()/update() outside a transaction (same structural-check shape as F16-A09)
+F20-A07  [U]  generateChecklist's transform (passed to the shared _mutateItems helper) fills items only when the transaction's own fresh server read of items is empty; run twice in sequence against the same trip, the second run leaves items and every packed flag exactly as the first run left them — re-verifying F10-A13 at the Firestore-transaction layer, not just in the in-memory Cubit
+F20-A08  [I]  saveTrip's edit branch and toggle issued concurrently (unawaited) against the SAME trip document — one editing name/destination, the other toggling an item — both land: a final read shows the edited detail fields AND the toggled item together, neither write dropped by the other (the non-clobber proof named in §6, tested through PackingCubit (F20_A08_cubit), with a complementary direct-repository check (F20_A08_repository))
 F20-A09  [I]  PackingCubit.toggle, when the repository call is in flight, has already optimistically updated state before the Future resolves (optimistic-then-reconcile, D6) — then, on a simulated repository failure, rolls back ONLY that one item's packed flag on that one trip, evaluated against the Cubit's current state at failure time, never a captured-whole-trips-list-before-the-call restore. Proven with a confound-free concurrent-second-toggle test (toggle item 'a' on trip 1, which fails; toggle item 'b' on trip 2, which succeeds; trip 2's change survives trip 1's rollback) — this exact targeted-rollback pattern is what the brief calls out as having "now bitten Tasks 4 AND 6," applied here from the start
-F20-A10  [I]  An interleaved updateTripDetails call that will fail, concurrent with a different trip's successful toggle/addWardrobe call: the targeted rollback (A09) reverts only the failed trip's detail fields — the other trip's independently-applied, concurrently-succeeding items change survives untouched (confound-free test proving the revert is trip-and-field-scoped, never whole-PackingState)
+F20-A10  [I]  An interleaved saveTrip edit-branch call that will fail, concurrent with a different trip's successful toggle/addWardrobe call: the targeted rollback (A09) reverts only the failed trip's detail fields — the other trip's independently-applied, concurrently-succeeding items change survives untouched (confound-free test proving the revert is trip-and-field-scoped, never whole-PackingState)
 F20-A11  [I]  lib/app.dart: with uid == null, PackingCubit is constructed with InMemoryPackingRepository; with uid == 'uid-1', it is constructed with FirestorePackingRepository — object type differs across the F14 sign-in/out transition, driven through a real StyloBuddyApp pumped via the uidStream/firestoreOverride harness with a bounded-polling wait (never a bare pumpAndSettle() per the Task 2 known gotcha), never a hand-built Cubit. Both directions of the transition are covered: guest-to-signed-in (the app.dart-level test) and signed-in-to-guest (a Cubit-level sample test, since both are torn down and rebuilt identically per F14 D3)
-F20-A12  [U]  InMemoryPackingRepository's write methods (createTrip, updateTripDetails, mutateItems, deleteTrip) each return a SynchronousFuture (or equivalent already-completed Future), not an async-declared method, verified by asserting the Future is already complete in the same microtask the call returns, before any pump/await — matching the Task 2-6 (F15-F19) lesson
+F20-A12  [U]  InMemoryPackingRepository's write methods (saveTrip, toggle, removeItem, addWardrobe, addCustom, generateChecklist, deleteTrip) each return a SynchronousFuture (or equivalent already-completed Future), not an async-declared method, verified by asserting the Future is already complete in the same microtask the call returns, before any pump/await — matching the Task 2-6 (F15-F19) lesson
 F20-A13  [U]  InMemoryPackingRepository never imports or constructs a Firestore client — guest mode makes zero network calls, structurally (same guarantee style as F14-A14/F15-A08/.../F19-A10)
 F20-A14  [U]  Any fire-and-forget PackingCubit repository call (if any call site ends up unawaited) has a .catchError (or equivalent) attached — a test asserts no unhandled rejection/uncaught Future error surfaces for a write allowed to fail in the background; if no such unawaited call exists in the final implementation, this assertion is satisfied vacuously and the implementer notes that in the completion block rather than skipping the test
-F20-A15  [U]  mutateItems called against a tripId that does not exist in Firestore (deleted concurrently) performs no write and its Future resolves without throwing — a silent no-op, not a crash (same precedent as F16-A13/A14)
+F20-A15  [U]  toggle/removeItem/addWardrobe/addCustom/generateChecklist called against a tripId that does not exist in Firestore (deleted concurrently) perform no write and each resolve without throwing — a silent no-op, not a crash (same precedent as F16-A13/A14)
 F20-A16  [U]  watchTrips() treats (a) a packingTrips document with an entirely missing items field as an empty list, distinguished in test code from (b) a document with an explicitly-present items: [] (the normal just-created-trip case), by exercising two different code paths even though both yield []; and separately, (c) a packingTrips subcollection with zero documents for a given uid emits an empty trip list, distinguished from (a)/(b) by never constructing any document at all for that test
 F20-A17  [I]  Sign-out then sign-in-again (same or different uid) leaves no stale trip bleed-through: signing out renders InMemoryPackingRepository's default empty trips (not the previous signed-in user's trips), and signing in as a different uid shows only that uid's own packingTrips documents, never the prior uid's cached values (F14 Review Focus item 2, re-verified at this feature's layer)
 F20-A18  [U]  FirestorePackingRepository.watchTrips()'s stream subscription inside PackingCubit has an onError handler attached — a test asserts a simulated stream error does not crash the Cubit or surface as an unhandled zone error
@@ -519,7 +530,7 @@ Status: IN PROGRESS (A20 live-verification pending)
 [ ] Gate 4  Live run
 
 Assertions: 19/20 PASS (A20 [L] deferred to live-verification pass)
-Regression: full `flutter test` suite green (586 tests), `flutter analyze` clean
+Regression: full `flutter test` suite green (590 tests), `flutter analyze` clean
 
 Note: the controller ruling in task-7-brief.md (binding) supersedes this
 document's own §6/§13 interface shape — implemented as ONE `saveTrip(Trip,
@@ -528,5 +539,33 @@ FIVE separately-named items-mutating methods (toggle/removeItem/
 addWardrobe/addCustom/generateChecklist), each delegating to a shared
 private `_mutateItems`/`runTransaction` helper, rather than one generic
 `mutateItems(tripId, transform)` method. Functionally equivalent to the
-doc's own §6 transaction/non-clobber rationale.
+doc's own §6 transaction/non-clobber rationale. §6/§11's body text below
+has been updated to use these actual implemented names throughout (the
+earlier draft names `createTrip`/`updateTripDetails`/`mutateItems` are kept
+only inside the superseded §13 "Open questions" discussion, which records
+why the draft shape was changed).
+
+Fix round (review findings): targeted (not whole-trip) rollback in
+`saveDraft`'s edit branch — restores only the detail fields the edit
+touched (name/destination/start/end/type/notes/days) against the CURRENT
+trip at failure time, leaving `items` untouched; `toggle`'s rollback now
+restores the packed value CAPTURED before the call rather than re-flipping
+whatever the current value is at failure time; `firestore_packing_
+repository.dart`'s `_mutateItems` now writes back only the `items` key via
+`tx.update` rather than the whole document via `tx.set`; F20-A09/A10's
+tests rewritten against a repository double whose `watchTrips()` never
+emits (eliminating the prior confound where a delegate's own write-driven
+re-emission reset state regardless of what the rollback code did), with
+new regression tests (`F20_A09_captured_value`, `F20_A10_same_trip`) that
+fail against the pre-fix code (verified by hand) and pass against the fix;
+`removeItem` now uses a manual scan + early return instead of `firstWhere`
+so a stale/absent key is a silent no-op again, matching the pre-existing
+guest-mode behavior; `F20_A11_cubit` now asserts a Firestore-seeded trip
+surfaces only through the signed-in Cubit; `F20_A06` now checks each
+method's own body (not file-wide string presence) delegates to
+`_mutateItems`; `F20_A08_cubit` added, driving the concurrent edit+toggle
+through `PackingCubit` as the doc specifies (the original repository-level
+test is kept as `F20_A08_repository`, a complementary lower-level check);
+`F20_A04` given its own named test (asserts `PackingCubit()`'s default
+construction, the path the pre-existing suite exercises unmodified).
 ```
