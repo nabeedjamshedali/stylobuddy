@@ -264,15 +264,23 @@ class PackingCubit extends Cubit<PackingState> {
     final trip = state.selectedTrip;
     if (trip == null) return;
     final tripId = trip.id;
+    // A stale/absent key is a silent no-op (the pre-existing guest-mode
+    // behavior) rather than a thrown StateError.
+    PackingItem? found;
+    for (final i in trip.items) {
+      if (i.key == key) {
+        found = i;
+        break;
+      }
+    }
+    if (found == null) return;
     // Captured BEFORE the optimistic flip, so the rollback can restore this
     // exact value directly — never re-flip the CURRENT value a second time,
     // which would invert an already-server-reconciled value if a
     // `watchTrips()` snapshot landed in the window between the optimistic
     // flip and this call's failure (no further correction ever arrives for
     // a Firestore transaction, since it carries no latency compensation).
-    final originalPacked = trip.items
-        .firstWhere((i) => i.key == key)
-        .packed;
+    final originalPacked = found.packed;
     _replaceTrip(
       trip.copyWith(
         items: [

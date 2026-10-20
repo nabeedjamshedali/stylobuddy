@@ -278,6 +278,32 @@ void main() {
       );
     });
 
+    test(
+      'F20_A20_followup toggling a stale/absent key is a silent no-op '
+      '(matches removeItem\'s already-established stale-key behavior) '
+      'rather than throwing',
+      () {
+        cubit.newTrip();
+        cubit.saveDraft(
+          name: 'Trip',
+          destination: '',
+          start: '2026-11-01',
+          end: '2026-11-03',
+          type: 'Vacation',
+          notes: '',
+        );
+        cubit.generateChecklist(seed);
+        final before = cubit.state.selectedTrip!.items
+            .map((i) => i.packed)
+            .toList();
+        expect(() => cubit.toggle('no-such-key'), returnsNormally);
+        expect(
+          cubit.state.selectedTrip!.items.map((i) => i.packed).toList(),
+          before,
+        );
+      },
+    );
+
     test('F10_A16 removing a checklist row deletes it', () {
       cubit.newTrip();
       cubit.saveDraft(
