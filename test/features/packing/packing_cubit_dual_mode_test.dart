@@ -228,6 +228,13 @@ void main() {
       final trip1Id = cubit.state.selectedTripId!;
       cubit.generateChecklist(SeedData.items);
 
+      // saveDraft's create-branch id is 'trip-${DateTime.now().millisecondsSinceEpoch}'
+      // (packing_cubit.dart) — without this delay, two trips created
+      // back-to-back in the same millisecond collide on id, corrupting
+      // every trip1Id/trip2Id lookup below (observed as a real,
+      // deterministic failure, not a rare flake, when this test runs fast
+      // enough in the full suite).
+      await Future<void>.delayed(const Duration(milliseconds: 2));
       cubit.newTrip();
       cubit.saveDraft(
         name: 'Trip 2',
@@ -406,6 +413,10 @@ void main() {
       final trip1Id = cubit.state.selectedTripId!;
       cubit.generateChecklist(SeedData.items);
 
+      // See the identical comment above F20_A09's trip2 creation: without
+      // this delay, two trips created in the same millisecond collide on
+      // saveDraft's DateTime.now()-derived id.
+      await Future<void>.delayed(const Duration(milliseconds: 2));
       cubit.newTrip();
       cubit.saveDraft(
         name: 'Trip 2',
