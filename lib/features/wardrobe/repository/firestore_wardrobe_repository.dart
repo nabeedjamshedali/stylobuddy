@@ -40,6 +40,14 @@ class FirestoreWardrobeRepository implements WardrobeRepository {
   static String? _normalizeImageUrl(String? value) =>
       (value == null || value.isEmpty) ? null : value;
 
+  /// Public wrapper around [_toFirestore] (F18 fix-round ruling): lets a
+  /// shared bootstrap seed writer (`lib/app.dart`) reuse this repository's
+  /// exact `wardrobeItems` document-write shape when seeding `SeedData`
+  /// directly inside the combined D5 transaction, instead of
+  /// hand-duplicating this field list in a second place.
+  static Map<String, dynamic> seedFieldsFor(ClothingItem item) =>
+      _toFirestore(item);
+
   static Map<String, dynamic> _toFirestore(ClothingItem item) => {
     // 'id' duplicated on the document per the schema doc's convention
     // (F15-A03), consistent with F14-A12's shared converter behavior.

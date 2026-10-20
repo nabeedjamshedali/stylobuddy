@@ -488,3 +488,57 @@ Status: DONE (A01-A19 implemented and verified; A20 [L] pending live-verificatio
 Assertions: 19/20 PASS (A20 [L] pending)
 Regression: full `flutter test` suite green — 538/538 passed; `flutter analyze` — No issues found!
 ```
+
+### Fix round (review findings)
+
+All review findings addressed — see
+`.superpowers/sdd/2026-10-19-backend-wiring/task-5-report.md`'s "Fix round" section for the
+full write-up. Summary:
+
+- **Critical (controller ruling):** `lib/app.dart`'s signed-in `ProfileCubit` branch now makes
+  the single production `runBootstrapIfNeeded` call for wardrobe/outfits/planner's own D5 seed
+  data too (a `seedWriter` reusing each `FirestoreXRepository.seedFieldsFor*` write shape),
+  folded under the one shared `seeded` flag alongside Profile's own `extraFields` payload. New
+  test `fix_round_Important1_combined_bootstrap` (test/app_backend_wiring_test.dart) proves a
+  brand-new signed-in user's bootstrap actually seeds Firestore with `SeedData`'s wardrobe
+  items/outfits/planned entries, not just profile fields — verified RED (fails against the
+  pre-fix `lib/app.dart`) → GREEN.
+- **Important #2 (F18-A05 RED evidence):** replaced the compile-error RED evidence with real
+  behavioral RED output, re-run against a `git worktree` checkout of commit `031162f` (main
+  immediately before this task) — see the report for the full command/output. The test passes
+  on that commit, proving the gap is real: a toggled onboarding occasion never reaches a
+  post-sign-in, argument-less `ProfileCubit()`.
+- **Important #3 (real app.dart-level handoff test):** added
+  `fix_round_Important3_new_uid` and `fix_round_Important3_returning_uid`
+  (test/app_backend_wiring_test.dart) — both pump the real `StyloBuddyApp`, drive a fake uid
+  stream, and poll the injected fake Firestore directly, rather than hand-reimplementing
+  `lib/app.dart`'s consume-and-bootstrap logic as the original `onboarding_handoff_test.dart`
+  did.
+- **Important #4 (real name/email seed):** `FirestoreProfileRepository.bootstrapIfNeeded` now
+  accepts `name`/`email`, sourced in `lib/app.dart` from a new
+  `currentUserProfileHint()` (`lib/shared/backend/auth_session.dart`) that reads
+  `FirebaseAuth.instance.currentUser?.displayName`/`?.email`, falling back to the hardcoded
+  defaults only when unavailable/empty.
+- **Important #5 (no clobbering a pre-existing field):** `runBootstrapIfNeeded`'s `extraFields`
+  callback is now handed the transaction's own read snapshot, and
+  `FirestoreProfileRepository.bootstrapIfNeeded` only includes keys genuinely absent from it.
+  Also fixed a fake_cloud_firestore limitation found while testing this (its `tx.set(...,
+  merge: true)` does not merge against the document's pre-transaction state, only against
+  earlier writes in the same transaction) by explicitly spreading the snapshot's own data into
+  the final write. `F18_A16_app` rewritten to pre-seed a race scenario deterministically
+  (pre-existing `name` field, no `seeded` flag) and assert the edit survives, instead of
+  "waiting out" a race and treating that as success.
+- **Minor #1:** removed the `F18_A08` `expect(true, isTrue)` placeholder; real A08 coverage is
+  `profile_cubit_test.dart`, unmodified.
+- **Minor #2:** `F18_A10` now also greps the source file for `cloud_firestore`, matching
+  F14-A14/F15-A08's structural-check precedent.
+- **Minor #3:** `F18_A02` now reconstructs `ProfileState` from only its 11 known fields and
+  greps `profile_state.dart`'s source for `wishlist`/`seeded`, instead of a bare
+  `isA<ProfileState>()`.
+- **Minor #4/#5:** no change — Minor #4 (`F18_A11`/`F18_A16_app` coverage) was already accepted
+  by the reviewer as adequate; Minor #5 (`ProfileCubit`'s `BlocProvider` laziness) left as-is to
+  avoid disturbing other tests' Cubit-construction-timing assumptions, noted as an open,
+  non-blocking question for a future pass.
+
+Regression after fix round: full `flutter test` suite green — 543/543 passed; `flutter
+analyze` — No issues found!

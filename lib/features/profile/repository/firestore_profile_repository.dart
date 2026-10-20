@@ -154,35 +154,75 @@ class FirestoreProfileRepository implements ProfileRepository {
   @override
   Future<void> setBillingCycle(String v) => _merge({'billingCycle': v});
 
-  /// D5 bootstrap seed (F18-A03/A06/A07): uses
-  /// [FirestoreService.runBootstrapIfNeeded] (Task 1's unchanged
+  /// D5 bootstrap seed (F18-A03/A06/A07), and — as of the F18 fix round's
+  /// controller ruling — the single production `runBootstrapIfNeeded` call
+  /// site shared with wardrobe/outfits/planner's own seed data.
+  ///
+  /// Uses [FirestoreService.runBootstrapIfNeeded] (Task 1's unchanged
   /// transaction mechanism/guard/lock-keying) inside its `seeded`-guarded
-  /// transaction. Profile has no subcollection to seed, so [seedWriter]
-  /// itself is a no-op — the full default [ProfileState] payload (with
-  /// `occasions` overridden by [pendingOccasions], the onboarding
-  /// handoff's union, already consumed-and-cleared by the caller, when
-  /// non-empty) plus `wishlist: []` are instead supplied via
-  /// `extraFields`, merged directly into `runBootstrapIfNeeded`'s own
-  /// existing `seeded: true` commit (see that method's doc comment for
-  /// why: writing these as a *second*, separate `tx.set` against the same
-  /// `userDoc` document — the natural-looking approach — silently loses
-  /// data against `fake_cloud_firestore`, confirmed empirically while
-  /// building this task). An empty [pendingOccasions] (nothing toggled)
-  /// falls back to `ProfileState()`'s hardcoded default occasions, never
-  /// an empty list (F18-A07: "didn't choose" != "chose to clear
-  /// everything"). A second call for an already-seeded uid performs no
-  /// further seed write at all (F14's guard, reaffirmed not
-  /// reimplemented).
-  Future<void> bootstrapIfNeeded({Set<String> pendingOccasions = const {}}) {
+  /// transaction. [seedWriter] defaults to a no-op (Profile itself has no
+  /// subcollection); `lib/app.dart` supplies a real one that writes
+  /// `SeedData`'s wardrobe items/outfits/planned entries via the same
+  /// transaction's `tx`/`userDoc`, so every signed-in user's bootstrap
+  /// seeds every feature under the one shared `seeded` flag rather than
+  /// Profile seeding in isolation (the bug this fix round closes — see
+  /// F18 task-5-report.md fix-round section).
+  ///
+  /// The full default [ProfileState] payload (with `occasions` overridden
+  /// by [pendingOccasions], the onboarding handoff's union, already
+  /// consumed-and-cleared by the caller, when non-empty, and `name`/
+  /// `email` overridden by [name]/[email] — the real signed-in user's
+  /// `FirebaseAuth` display name/email, schema doc §1 — when non-null/
+  /// non-empty) plus `wishlist: []` are supplied via `extraFields`, merged
+  /// directly into `runBootstrapIfNeeded`'s own existing `seeded: true`
+  /// commit (see that method's doc comment for why: writing these as a
+  /// *second*, separate `tx.set` against the same `userDoc` document —
+  /// the natural-looking approach — silently loses data against
+  /// `fake_cloud_firestore`, confirmed empirically while building this
+  /// task).
+  ///
+  /// [extraFields] only includes keys genuinely absent from this
+  /// transaction's own read of `userDoc` (Important #5, F18 fix round):
+  /// a profile field already present — e.g. an edit that landed while
+  /// this bootstrap attempt was in flight, or an earlier offline edit that
+  /// only just synced — survives untouched; only a brand-new document's
+  /// still-missing fields get the seed defaults. `seeded: true` is always
+  /// set regardless (it is this method's own infra flag, never a user
+  /// field).
+  ///
+  /// An empty [pendingOccasions] (nothing toggled) falls back to
+  /// `ProfileState()`'s hardcoded default occasions, never an empty list
+  /// (F18-A07: "didn't choose" != "chose to clear everything"). A second
+  /// call for an already-seeded uid performs no further seed write at all
+  /// (F14's guard, reaffirmed not reimplemented).
+  Future<void> bootstrapIfNeeded({
+    Set<String> pendingOccasions = const {},
+    String? name,
+    String? email,
+    Future<void> Function(
+      Transaction tx,
+      DocumentReference<Map<String, dynamic>> userDoc,
+    )?
+    seedWriter,
+  }) {
     final occasions = pendingOccasions.isEmpty
         ? _defaults.occasions
         : pendingOccasions.toList();
+    final seedState = ProfileState(
+      occasions: occasions,
+      name: (name != null && name.isNotEmpty) ? name : _defaults.name,
+      email: (email != null && email.isNotEmpty) ? email : _defaults.email,
+    );
     return _service.runBootstrapIfNeeded(
       _uid,
-      (tx, userDoc) async {},
-      extraFields: () => {
-        ..._toFirestore(ProfileState(occasions: occasions)),
-        'wishlist': <String>[],
+      seedWriter ?? (tx, userDoc) async {},
+      extraFields: (existingData) {
+        final full = {..._toFirestore(seedState), 'wishlist': <String>[]};
+        // Only seed keys genuinely absent from this transaction's own
+        // read — never stomp a field that's already present (Important
+        // #5).
+        full.removeWhere((key, _) => existingData.containsKey(key));
+        return full;
       },
     );
   }

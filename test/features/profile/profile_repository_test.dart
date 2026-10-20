@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show SynchronousFuture;
@@ -79,10 +81,39 @@ void main() {
         );
 
         final state = await repo.watchProfile().first;
-        // ProfileState itself has no wishlist/seeded field at all — this is
-        // really just confirming the type's own shape, reaffirmed here per
-        // F14's precedent.
-        expect(state, isA<ProfileState>());
+        // Strengthened per fix-round Minor #3: a bare isA<ProfileState>()
+        // only checked the runtime type, not that wishlist/seeded are
+        // actually excluded from the type's own shape. Rebuilding the
+        // exact same ProfileState from only its 11 known public fields
+        // must round-trip identically — if ProfileState ever grew a
+        // wishlist/seeded field, this reconstruction would need updating
+        // to still compile, making a silent shape drift impossible to
+        // miss.
+        final rebuilt = ProfileState(
+          name: state.name,
+          email: state.email,
+          styles: state.styles,
+          occasions: state.occasions,
+          dailyNotifications: state.dailyNotifications,
+          plannedNotifications: state.plannedNotifications,
+          productNotifications: state.productNotifications,
+          weatherConsent: state.weatherConsent,
+          climate: state.climate,
+          plan: state.plan,
+          billingCycle: state.billingCycle,
+        );
+        expect(rebuilt.name, state.name);
+        expect(rebuilt.email, state.email);
+        expect(rebuilt.styles, state.styles);
+        expect(rebuilt.occasions, state.occasions);
+
+        // Structural guarantee (matches F14-A14/F15-A08's precedent): the
+        // type's own source never declares a wishlist/seeded field at all.
+        final source = File(
+          'lib/features/profile/cubit/profile_state.dart',
+        ).readAsStringSync();
+        expect(source.contains('wishlist'), isFalse);
+        expect(source.contains('seeded'), isFalse);
       },
     );
 
@@ -184,6 +215,85 @@ void main() {
     );
 
     test(
+      'fix_round_Important5 the bootstrap seed never clobbers a profile field already present before the seeded flag commits (e.g. an offline-then-edit-then-retry race)',
+      () async {
+        // Simulate the race: a profile edit (e.g. a queued offline write
+        // that just synced) landed on the document BEFORE the 'seeded'
+        // flag was ever committed.
+        await service.userDoc('uid-race').set({'name': 'Edited Name'});
+        final raceRepo = FirestoreProfileRepository(service, 'uid-race');
+
+        await raceRepo.bootstrapIfNeeded();
+
+        final raw = await service.userDoc('uid-race').get();
+        expect(
+          raw.data()!['name'],
+          'Edited Name',
+          reason: 'a field already present must survive the seed, never be '
+              'stomped back to the hardcoded default',
+        );
+        expect(raw.data()!['seeded'], true);
+        // Every OTHER field (genuinely absent before this call) still gets
+        // seeded normally — this isn't a case of the seed doing nothing.
+        expect(raw.data()!['email'], const ProfileState().email);
+        expect(raw.data()!['wishlist'], <String>[]);
+      },
+    );
+
+    test(
+      'fix_round_Important4 bootstrapIfNeeded seeds the real FirebaseAuth-sourced name/email when supplied, falling back to defaults only when unavailable',
+      () async {
+        final withAuthInfo = FirestoreProfileRepository(service, 'uid-auth');
+        await withAuthInfo.bootstrapIfNeeded(
+          name: 'Jordan Real',
+          email: 'jordan.real@example.com',
+        );
+        final raw = await service.userDoc('uid-auth').get();
+        expect(raw.data()!['name'], 'Jordan Real');
+        expect(raw.data()!['email'], 'jordan.real@example.com');
+
+        // null/empty name/email (e.g. unavailable) falls back to the
+        // hardcoded placeholder defaults, never writes an empty string.
+        final withoutAuthInfo = FirestoreProfileRepository(
+          service,
+          'uid-noauth',
+        );
+        await withoutAuthInfo.bootstrapIfNeeded(name: null, email: '');
+        final rawNoAuth = await service.userDoc('uid-noauth').get();
+        expect(rawNoAuth.data()!['name'], const ProfileState().name);
+        expect(rawNoAuth.data()!['email'], const ProfileState().email);
+      },
+    );
+
+    test(
+      'fix_round_combined_bootstrap_seedWriter a custom seedWriter supplied to bootstrapIfNeeded runs inside the same transaction as the profile extraFields commit',
+      () async {
+        var seedWriterCalls = 0;
+        final repoWithSeedWriter = FirestoreProfileRepository(
+          service,
+          'uid-combined',
+        );
+        await repoWithSeedWriter.bootstrapIfNeeded(
+          seedWriter: (tx, userDoc) async {
+            seedWriterCalls++;
+            tx.set(userDoc.collection('wardrobeItems').doc('seed-item'), {
+              'id': 'seed-item',
+            });
+          },
+        );
+        expect(seedWriterCalls, 1);
+        final seededItem = await service
+            .userDoc('uid-combined')
+            .collection('wardrobeItems')
+            .doc('seed-item')
+            .get();
+        expect(seededItem.exists, isTrue);
+        final raw = await service.userDoc('uid-combined').get();
+        expect(raw.data()!['seeded'], true);
+      },
+    );
+
+    test(
       'F18_A18 watchProfile() treats a missing occasions/styles field as the hardcoded default, and an explicitly-present empty array as a genuinely empty list, verbatim',
       () async {
         // Legacy doc written before this task's fields existed: entirely
@@ -239,18 +349,15 @@ void main() {
     );
   });
 
+  // F18-A08 ("InMemoryProfileRepository's behavior is unchanged from
+  // today's ProfileCubit-held logic") has no dedicated test in this file
+  // (fix round, Minor #1): the previous placeholder here was a bare
+  // `expect(true, isTrue)` that asserted nothing. The real coverage
+  // already lives in test/features/profile/profile_cubit_test.dart, which
+  // this task leaves byte-for-byte unedited and still green against
+  // ProfileCubit's new repository-backed constructor (its default
+  // argument) — see that file for A08's actual verification.
   group('InMemoryProfileRepository', () {
-    test(
-      'F18_A08 behavior is unchanged from today\'s ProfileCubit-held logic (covered end-to-end by profile_cubit_test.dart, unmodified)',
-      () {
-        // Documented here for traceability; the actual regression coverage
-        // is profile_cubit_test.dart, which this task leaves byte-for-byte
-        // unedited and still passing against ProfileCubit's new
-        // repository-backed constructor (its default argument).
-        expect(true, isTrue);
-      },
-    );
-
     test(
       'F18_A09 every write method returns an already-completed (SynchronousFuture) Future, verified before any pump/await',
       () {
@@ -271,12 +378,18 @@ void main() {
     test(
       'F18_A10 never imports or constructs a Firestore client — zero network calls, structurally',
       () {
-        // Structural guarantee: InMemoryProfileRepository's source file
-        // imports nothing from cloud_firestore (verified by inspection,
-        // F18 doc §10) — exercised here by confirming every operation
-        // completes purely synchronously with no pending async I/O.
         final repo = InMemoryProfileRepository();
         expect(repo.snapshot, const ProfileState());
+
+        // Strengthened per fix-round Minor #2 (matching F14-A14/F15-A08's
+        // established source-text-grep pattern): actually read the
+        // source file and assert it never imports cloud_firestore, rather
+        // than only asserting synchronous behavior and claiming the
+        // import-free guarantee "by inspection".
+        final source = File(
+          'lib/features/profile/repository/in_memory_profile_repository.dart',
+        ).readAsStringSync();
+        expect(source.contains('cloud_firestore'), isFalse);
       },
     );
   });

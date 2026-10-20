@@ -37,6 +37,39 @@ String? currentUid() {
   }
 }
 
+/// Best-effort display name/email hint for the currently signed-in user
+/// (F18 fix round, Important #4), for use only when seeding a brand-new
+/// user's profile document (D5 bootstrap) — schema doc §1 says `email`
+/// should mirror `FirebaseAuth.currentUser.email` at sign-in. This is a
+/// one-time seed value, not a live mirror: if the underlying Firebase
+/// account's display name changes later, StyloBuddy's own profile screen
+/// (not this helper) is the only thing that updates `users/{uid}.name`
+/// again.
+///
+/// A blank/empty display name or email (e.g. an email/password signup has
+/// no `displayName`) is normalized to `null` rather than an empty string,
+/// so a bootstrap caller can tell "unavailable" apart from "empty" and
+/// fall back to `ProfileState()`'s hardcoded defaults instead of seeding
+/// an empty value. Never throws (same guard as [currentUid]).
+({String? name, String? email}) currentUserProfileHint() {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    final rawName = user?.displayName;
+    final rawEmail = user?.email;
+    return (
+      name: (rawName == null || rawName.isEmpty) ? null : rawName,
+      email: (rawEmail == null || rawEmail.isEmpty) ? null : rawEmail,
+    );
+  } catch (error) {
+    if (kDebugMode) {
+      debugPrint(
+        'currentUserProfileHint(): FirebaseAuth.instance unavailable ($error); falling back to no hint.',
+      );
+    }
+    return (name: null, email: null);
+  }
+}
+
 /// Wraps [FirebaseAuth]'s auth-state stream into the single `uid` (or
 /// `null`) signal every root Cubit's construction is keyed on (architecture
 /// D3). `null` means guest/signed-out; a non-empty string is the signed-in

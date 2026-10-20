@@ -22,6 +22,7 @@ import 'package:stylobuddy/features/wardrobe/cubit/import_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_browse_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_cubit.dart';
 import 'package:stylobuddy/features/wardrobe/cubit/wardrobe_state.dart';
+import 'package:stylobuddy/shared/backend/pending_onboarding_selections.dart';
 import 'package:stylobuddy/shared/data/seed_data.dart';
 import 'package:stylobuddy/shared/models/clothing_item.dart';
 import 'package:stylobuddy/shared/models/planned_entry.dart';
@@ -788,9 +789,18 @@ void main() {
   );
 
   testWidgets(
-    'F18_A16_app a sign-in -> edit -> sign-out -> sign-in-as-different-uid cycle through the real StyloBuddyApp never bleeds a prior uid\'s profile data into the next one',
+    'F18_A16_app a sign-in -> edit -> sign-out -> sign-in-as-different-uid cycle through the real StyloBuddyApp never bleeds a prior uid\'s profile data into the next one, and a profile edit landed before the bootstrap seed commits survives it',
     (tester) async {
       final firestore = FakeFirebaseFirestore();
+      // Fix-round Important #5, proven deterministically (not "waited
+      // out"): pre-seed 'uid-a's document with a 'name' field and
+      // deliberately NO 'seeded' flag, simulating an edit that landed on
+      // the document (e.g. a queued offline write that just synced)
+      // before this sign-in's D5 bootstrap has ever run. The bootstrap
+      // below must leave this field alone, never revert it to the
+      // hardcoded default.
+      await firestore.collection('users').doc('uid-a').set({'name': 'User A'});
+
       final controller = StreamController<String?>();
       addTearDown(controller.close);
       await tester.pumpWidget(
@@ -808,14 +818,7 @@ void main() {
       // screen's `context.read<ProfileCubit>()` would do on navigation).
       tester.element(find.byType(MaterialApp)).read<ProfileCubit>();
 
-      // Wait for the brand-new uid's background D5 bootstrap (unawaited
-      // at its lib/app.dart call site) to actually commit before editing —
-      // otherwise this test would be racing its own edit against the
-      // bootstrap's full-default seed write landing on the same document,
-      // which is a timing artifact of this test driving the Cubit the
-      // instant after pumpAndSettle, not a scenario a real user (who takes
-      // much longer than one Firestore round trip to reach an edit
-      // screen) would ever hit.
+      // Wait for the bootstrap to actually commit.
       var seeded = false;
       var deadline = DateTime.now().add(const Duration(seconds: 5));
       while (DateTime.now().isBefore(deadline)) {
@@ -829,9 +832,18 @@ void main() {
       expect(seeded, isTrue);
 
       var context = tester.element(find.byType(MaterialApp));
-      context.read<ProfileCubit>().updateDetails('User A', 'a@x.com');
+      expect(
+        context.read<ProfileCubit>().state.name,
+        'User A',
+        reason:
+            'a profile field already present before the seeded flag '
+            'committed must survive the bootstrap seed, never revert to '
+            "the hardcoded default ('Alex Morgan')",
+      );
 
-      bool sawUserA = false;
+      context.read<ProfileCubit>().updateDetails('User A Edited', 'a@x.com');
+
+      bool sawUserAEdited = false;
       var userADeadline = DateTime.now().add(const Duration(seconds: 5));
       while (DateTime.now().isBefore(userADeadline)) {
         await tester.runAsync(
@@ -839,18 +851,19 @@ void main() {
         );
         await tester.pump();
         context = tester.element(find.byType(MaterialApp));
-        sawUserA = context.read<ProfileCubit>().state.name == 'User A';
-        if (sawUserA) break;
+        sawUserAEdited =
+            context.read<ProfileCubit>().state.name == 'User A Edited';
+        if (sawUserAEdited) break;
       }
-      expect(sawUserA, isTrue);
+      expect(sawUserAEdited, isTrue);
 
-      // Sign-out: must show the guest default, never 'User A'.
+      // Sign-out: must show the guest default, never 'User A Edited'.
       controller.add(null);
       await tester.pumpAndSettle();
       context = tester.element(find.byType(MaterialApp));
       expect(context.read<ProfileCubit>().state.name, 'Alex Morgan');
 
-      // Sign-in as a different uid: must never see uid-a's 'User A'.
+      // Sign-in as a different uid: must never see uid-a's 'User A Edited'.
       controller.add('uid-b');
       final bleedDeadline = DateTime.now().add(const Duration(seconds: 5));
       bool bled = false;
@@ -860,12 +873,180 @@ void main() {
         );
         await tester.pump();
         context = tester.element(find.byType(MaterialApp));
-        if (context.read<ProfileCubit>().state.name == 'User A') {
+        if (context.read<ProfileCubit>().state.name == 'User A Edited') {
           bled = true;
           break;
         }
       }
       expect(bled, isFalse);
+    },
+  );
+
+  testWidgets(
+    'fix_round_Important1_combined_bootstrap a brand-new signed-in user\'s single bootstrap through the real StyloBuddyApp seeds Firestore with SeedData\'s wardrobe items, outfits, and planned entries — not just profile fields',
+    (tester) async {
+      final firestore = FakeFirebaseFirestore();
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: 'uid-new',
+        ),
+      );
+      await tester.pumpAndSettle();
+      // Force every root Cubit's lazy `create` to run, mirroring what
+      // real navigation to each tab would do — the bootstrap itself is
+      // only kicked off from ProfileCubit's `create`, but reading the
+      // others here documents that all four Cubits end up backed by the
+      // same seeded uid, not just Profile's.
+      final context = tester.element(find.byType(MaterialApp));
+      context.read<ProfileCubit>();
+      context.read<WardrobeCubit>();
+      context.read<OutfitsCubit>();
+      context.read<PlannerCubit>();
+
+      var seeded = false;
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        final doc = await firestore.collection('users').doc('uid-new').get();
+        seeded = doc.data()?['seeded'] == true;
+        if (seeded) break;
+      }
+      expect(seeded, isTrue);
+
+      final usersDoc = firestore.collection('users').doc('uid-new');
+      final wardrobeDocs = await usersDoc.collection('wardrobeItems').get();
+      expect(
+        wardrobeDocs.docs.map((d) => d.id).toSet(),
+        SeedData.items.map((i) => i.id).toSet(),
+        reason:
+            'before this fix round, runBootstrapIfNeeded had zero '
+            'production call sites for wardrobe seed data at all',
+      );
+
+      final outfitsDocs = await usersDoc.collection('outfits').get();
+      expect(
+        outfitsDocs.docs.map((d) => d.id).toSet(),
+        SeedData.outfits.map((o) => o.id.toString()).toSet(),
+      );
+
+      final plannedDocs = await usersDoc.collection('plannedEntries').get();
+      expect(
+        plannedDocs.docs.map((d) => d.id).toSet(),
+        SeedData.planned.keys.toSet(),
+      );
+    },
+  );
+
+  testWidgets(
+    'fix_round_Important3_new_uid a non-empty PendingOnboardingSelections holder, consumed through the real lib/app.dart wiring (not a hand-reimplementation) on a brand-new uid\'s sign-in, reaches the bootstrap-seeded Firestore document, and is cleared afterward',
+    (tester) async {
+      PendingOnboardingSelections.setChosenOccasions({'Wedding'});
+      PendingOnboardingSelections.setChosenChips({'Travel'});
+      addTearDown(PendingOnboardingSelections.clear);
+
+      final firestore = FakeFirebaseFirestore();
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Sign in as a brand-new uid: lib/app.dart's own uid-keyed
+      // MultiBlocProvider construction (not a test-reimplemented copy of
+      // its logic) must consume-and-clear the holder and fold it into the
+      // bootstrap seed.
+      controller.add('uid-new-signup');
+      await tester.pumpAndSettle();
+      tester.element(find.byType(MaterialApp)).read<ProfileCubit>();
+
+      List<Object?>? seededOccasions;
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        final doc = await firestore
+            .collection('users')
+            .doc('uid-new-signup')
+            .get();
+        seededOccasions = doc.data()?['occasions'] as List<Object?>?;
+        if (seededOccasions != null) break;
+      }
+
+      expect(
+        seededOccasions,
+        isNotNull,
+        reason: 'the real lib/app.dart wiring must have actually run the '
+            'bootstrap and written occasions',
+      );
+      expect(seededOccasions, containsAll(['Wedding', 'Travel']));
+
+      // The holder must have been cleared by app.dart's own consume()
+      // call, not leaking into a later, unrelated sign-up.
+      expect(PendingOnboardingSelections.consume(), isEmpty);
+    },
+  );
+
+  testWidgets(
+    'fix_round_Important3_returning_uid a RETURNING (already-seeded) uid\'s sign-in must NOT apply stale pending selections — the seeded guard blocks the write, but the holder is still cleared',
+    (tester) async {
+      final firestore = FakeFirebaseFirestore();
+      await firestore.collection('users').doc('uid-returning').set({
+        'occasions': ['Office'],
+        'seeded': true,
+      });
+
+      PendingOnboardingSelections.setChosenOccasions({'Wedding'});
+      addTearDown(PendingOnboardingSelections.clear);
+
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      controller.add('uid-returning');
+      await tester.pumpAndSettle();
+      tester.element(find.byType(MaterialApp)).read<ProfileCubit>();
+
+      // Give the unawaited bootstrap call a chance to run (it will no-op
+      // per the seeded guard) before asserting.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pump();
+
+      final doc = await firestore.collection('users').doc('uid-returning').get();
+      expect(
+        doc.data()!['occasions'],
+        ['Office'],
+        reason: "a returning uid's bootstrap must be a no-op (F14's "
+            'existing seeded guard) — the stale pending selection must '
+            'never overwrite it',
+      );
+
+      // The holder is still consumed-and-cleared by app.dart even though
+      // the bootstrap itself ended up doing nothing.
+      expect(PendingOnboardingSelections.consume(), isEmpty);
     },
   );
 }

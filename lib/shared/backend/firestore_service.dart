@@ -121,6 +121,24 @@ class FirestoreService {
   /// `FirestoreProfileRepository` is the first caller whose seed data
   /// belongs directly on `userDoc`, which collides with this method's own
   /// trailing `seeded: true` commit unless folded into the same write.
+  ///
+  /// [extraFields] is handed this transaction's own `tx.get(userDoc)`
+  /// read (as a plain field map, `{}` if the document didn't exist yet) —
+  /// a caller MUST use this to only seed fields that are genuinely absent
+  /// from that snapshot, never a blind overwrite of every field it knows
+  /// about (F18 fix-round, Important #5). This matters for a real,
+  /// non-fake Firestore project: the device may be offline when
+  /// `runBootstrapIfNeeded` is first attempted (that attempt fails
+  /// outright, see above), the user may then edit their profile while
+  /// still offline (queued as a separate merge-set that commits once
+  /// connectivity returns), and a *later* bootstrap retry/relaunch must
+  /// not stomp that edit back to a seed default just because it runs
+  /// after the edit's write landed. Seeding only the keys missing from
+  /// this transaction's own read (rather than from some earlier,
+  /// possibly-stale caller-held snapshot) is also what lets a real
+  /// Firestore transaction's retry-on-contention correctly re-exclude a
+  /// field the instant a concurrent write makes it visible to a retried
+  /// read.
   Future<void> runBootstrapIfNeeded(
     String uid,
     Future<void> Function(
@@ -128,7 +146,8 @@ class FirestoreService {
       DocumentReference<Map<String, dynamic>> userDoc,
     )
     seedWriter, {
-    Map<String, dynamic> Function()? extraFields,
+    Map<String, dynamic> Function(Map<String, dynamic> existingData)?
+    extraFields,
   }) {
     final key = _lockKey(uid);
     final previous = _bootstrapLocks[key] ?? Future<void>.value();
@@ -160,19 +179,35 @@ class FirestoreService {
       DocumentReference<Map<String, dynamic>> userDoc,
     )
     seedWriter,
-    Map<String, dynamic> Function()? extraFields,
+    Map<String, dynamic> Function(Map<String, dynamic> existingData)?
+    extraFields,
   ) {
     final doc = userDoc(uid);
     return _firestore.runTransaction((tx) async {
       final snapshot = await tx.get(doc);
-      final seeded = (snapshot.data()?['seeded'] as bool?) ?? false;
+      final existingData = snapshot.data() ?? const <String, dynamic>{};
+      final seeded = (existingData['seeded'] as bool?) ?? false;
       if (seeded) return;
       await seedWriter(tx, doc);
       // extraFields is merged into this one write (see its doc comment on
       // runBootstrapIfNeeded) rather than seedWriter issuing its own,
-      // second tx.set/update against the same userDoc.
+      // second tx.set/update against the same userDoc. It is handed this
+      // transaction's own read so it can seed only fields genuinely
+      // absent from the document, never stomp a field that's already
+      // present (Important #5).
+      //
+      // `existingData` is spread explicitly here (not left to
+      // `SetOptions(merge: true)` alone) because `fake_cloud_firestore`
+      // (confirmed empirically while building this fix round) does not
+      // merge a `tx.set(..., merge: true)` call against the document's
+      // state from *before* the transaction started — only against other
+      // writes made earlier in the same transaction. Spreading
+      // `existingData` first makes the final write correct against both
+      // the fake (explicit full map) and real Firestore (where this is a
+      // harmless no-op superset of what `merge: true` would already do).
       tx.set(doc, {
-        ...?extraFields?.call(),
+        ...existingData,
+        ...?extraFields?.call(existingData),
         'seeded': true,
       }, SetOptions(merge: true));
     });

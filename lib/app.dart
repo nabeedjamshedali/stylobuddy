@@ -30,6 +30,46 @@ import 'features/wardrobe/repository/in_memory_wardrobe_repository.dart';
 import 'shared/backend/auth_session.dart';
 import 'shared/backend/firestore_service.dart';
 import 'shared/backend/pending_onboarding_selections.dart';
+import 'shared/data/seed_data.dart';
+
+/// The single, combined D5 bootstrap seed writer (F18 fix-round, binding
+/// controller ruling) — writes `SeedData`'s wardrobe items, outfits, and
+/// planned entries under the given [userDoc]'s subcollections, reusing
+/// each feature's own `FirestoreXRepository.seedFieldsFor*` document-write
+/// shape rather than hand-duplicating field lists here. This is the one
+/// and only production call site for wardrobe/outfits/planner's D5 seed
+/// data — before this fix round, `runBootstrapIfNeeded` (Task 1) had zero
+/// production callers at all for those three features, so a real
+/// brand-new signed-in user never got their wardrobe/outfits/planner
+/// seeded.
+///
+/// Side-effect-free outside [tx] (no network calls, no writes via a
+/// different client) and safe to re-run if the transaction retries on
+/// contention (every write is a fixed-id `tx.set`, so re-running this is
+/// idempotent) — per D5's existing `seedWriter` contract.
+Future<void> _bootstrapOtherFeatures(
+  Transaction tx,
+  DocumentReference<Map<String, dynamic>> userDoc,
+) async {
+  for (final item in SeedData.items) {
+    tx.set(
+      userDoc.collection('wardrobeItems').doc(item.id),
+      FirestoreWardrobeRepository.seedFieldsFor(item),
+    );
+  }
+  for (final outfit in SeedData.outfits) {
+    tx.set(
+      userDoc.collection('outfits').doc(outfit.id.toString()),
+      FirestoreOutfitsRepository.seedFieldsForOutfit(outfit),
+    );
+  }
+  for (final entry in SeedData.planned.entries) {
+    tx.set(
+      userDoc.collection('plannedEntries').doc(entry.key),
+      FirestorePlannerRepository.seedFieldsFor(entry.value),
+    );
+  }
+}
 
 class StyloBuddyApp extends StatefulWidget {
   const StyloBuddyApp({
@@ -199,10 +239,25 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
                 // `create` callback cannot be async; `watchProfile()`'s
                 // live subscription below picks up the seeded document
                 // once the transaction commits.
+                //
+                // F18 fix round: this is also the single production call
+                // site for wardrobe/outfits/planner's D5 seed data
+                // (_bootstrapOtherFeatures, passed as seedWriter) and for
+                // the real signed-in user's FirebaseAuth display
+                // name/email (currentUserProfileHint, Important #4) —
+                // both folded into this one runBootstrapIfNeeded call
+                // under the single shared `seeded` flag, per the
+                // controller ruling.
                 final pendingOccasions = PendingOnboardingSelections.consume();
+                final profileHint = currentUserProfileHint();
                 unawaited(
                   repository
-                      .bootstrapIfNeeded(pendingOccasions: pendingOccasions)
+                      .bootstrapIfNeeded(
+                        pendingOccasions: pendingOccasions,
+                        name: profileHint.name,
+                        email: profileHint.email,
+                        seedWriter: _bootstrapOtherFeatures,
+                      )
                       .catchError((Object error, StackTrace stackTrace) {
                         if (kDebugMode) {
                           debugPrint(

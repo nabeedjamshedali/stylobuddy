@@ -42,6 +42,13 @@ class FirestoreOutfitsRepository implements OutfitsRepository {
         worn: (data['worn'] as num?)?.toInt() ?? 0,
       );
 
+  /// Public wrapper around [_outfitToFirestore] (F18 fix-round ruling):
+  /// lets a shared bootstrap seed writer (`lib/app.dart`) reuse this
+  /// repository's exact `outfits` document-write shape when seeding
+  /// `SeedData.outfits` directly inside the combined D5 transaction.
+  static Map<String, dynamic> seedFieldsForOutfit(Outfit outfit) =>
+      _outfitToFirestore(outfit);
+
   static Map<String, dynamic> _outfitToFirestore(Outfit outfit) => {
     // 'id' duplicated on the document per the schema doc's convention
     // (F16-A04), consistent with F14-A12/F15-A03's shared converter

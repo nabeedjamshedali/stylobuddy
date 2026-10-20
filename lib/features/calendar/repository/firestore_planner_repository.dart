@@ -40,6 +40,13 @@ class FirestorePlannerRepository implements PlannerRepository {
     'occasion': entry.occasion,
   };
 
+  /// Public wrapper around [_toFirestore] (F18 fix-round ruling): lets a
+  /// shared bootstrap seed writer (`lib/app.dart`) reuse this repository's
+  /// exact `plannedEntries` document-write shape when seeding
+  /// `SeedData.planned` directly inside the combined D5 transaction.
+  static Map<String, dynamic> seedFieldsFor(PlannedEntry entry) =>
+      _toFirestore(entry);
+
   @override
   Stream<Map<String, PlannedEntry>> watchPlanned() =>
       _collection.snapshots().map(
