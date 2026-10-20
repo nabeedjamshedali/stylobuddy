@@ -15,7 +15,7 @@
 | Navigation | `go_router` ^14 |
 | Assets/UI | `flutter_svg` ^2, bundled DMSans + Manrope fonts (via `AppTextStyles`), `intl` ^0.20 |
 | Data (Milestone 1, guest) | In-memory repositories seeded from `SeedData` (prototype data) — unchanged, every guest path |
-| Data (Milestone 2, backend wiring) | Firebase Auth (Google sign-in, real), Firestore (foundation wired by F14: `uidChanges()`, `FirestoreService`, auth-gated Cubit reconstruction in `lib/app.dart`; per-feature repositories land Tasks 2-7), Crashlytics (real, `lib/main.dart`). Still later: Supabase Storage, RevenueCat, Analytics, Remote Config |
+| Data (Milestone 2, backend wiring) | Firebase Auth (Google sign-in, real), Firestore (foundation wired by F14: `uidChanges()`, `FirestoreService`, auth-gated Cubit reconstruction in `lib/app.dart`; per-feature repositories land Tasks 2-7), Crashlytics (real, `lib/main.dart`). *(2026-10-20)* Supabase Edge Functions: `storage-upload-url` (real, deployed) and `ai-stylist` (stub — verifies the caller's Firebase token then returns `501` until an LLM provider is chosen; not called from any Flutter code yet, `docs/features/F23-ai-stylist-stub.md`). Still later: RevenueCat, Analytics, Remote Config |
 | Tests | `flutter_test` (unit + widget); `fake_cloud_firestore` + `mocktail` for Firestore/Auth test doubles (never the real emulator/project in unit tests); live run on Chrome |
 | Tooling | `flutter_launcher_icons`, `flutter_native_splash` |
 

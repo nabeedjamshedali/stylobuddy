@@ -10,3 +10,11 @@ project_id = "dbaeaqyoyilxcuwplvuw"
 # disabled for this function, or every request is rejected with
 # UNAUTHORIZED_ASYMMETRIC_JWT before this function's own code ever runs.
 verify_jwt = false
+
+[functions.ai-stylist]
+# Same reason as storage-upload-url above (F23, Task 10): this function
+# verifies a Firebase ID token itself (same _shared/firebase-auth.ts), so
+# Supabase's gateway-level JWT verification must stay off for it too, or
+# every request — including a valid Firebase token — gets the gateway's own
+# UNAUTHORIZED_ASYMMETRIC_JWT before the function's own 401/501 logic runs.
+verify_jwt = false

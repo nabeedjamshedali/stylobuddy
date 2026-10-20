@@ -105,6 +105,17 @@ it) and returns `501 Not Configured` from a `llmAdapter.ts` stub that will
 later dispatch to whichever provider is chosen. See
 `supabase-storage-and-functions.md` §3.
 
+*(2026-10-20, Task 10 amendment)* This entry's details are superseded by
+`docs/superpowers/specs/2026-10-19-supabase-storage-and-functions.md` §3
+and `docs/features/F23-ai-stylist-stub.md`, which are the actual
+implemented shape: no Flutter code calls `ai-stylist` (no "repository call
+that hits it"), it has no CORS handling (no browser caller exists), the
+seam file is `_shared/llm-adapter.ts` (not `llmAdapter.ts`), and the
+no-adapter body is the exact JSON `{"error": "AI provider not configured
+yet"}` (not the string "501 Not Configured"). This note is left here
+rather than rewriting D8 itself (out of Task 10's scope; ruling: §13 Q5 of
+F23).
+
 **D9 — Firestore security rules stay default-deny, extended per-collection.**
 The existing `firestore.rules` (`users/{uid}/{document=**}` → owner-only) is
 extended with field-level `request.resource.data.keys()` checks per

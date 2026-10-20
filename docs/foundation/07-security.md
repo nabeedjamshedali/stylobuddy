@@ -26,6 +26,8 @@ Structurally guest-vs-authenticated as of F14: `uid == null` gets an in-memory-o
 
 Firebase service-account JSON and Supabase access token are supplied by the owner for setup only, never committed, never logged; client config files (`google-services.json`, `firebase_options.dart`) are committed since they are public client identifiers, not secrets.
 
+*(2026-10-20, Task 10/F23)* The `ai-stylist` Edge Function's `LLM_PROVIDER` selector and any future chosen provider's API key are set only via `supabase secrets set --project-ref dbaeaqyoyilxcuwplvuw`, the same mechanism and discipline as the existing service-role key — never committed, never logged. Today `LLM_PROVIDER` is unset in production and the function always answers `501` (`docs/features/F23-ai-stylist-stub.md`).
+
 ## 5. Audit
 
 Crashlytics is wired (`lib/main.dart`: `FlutterError.onError`/`PlatformDispatcher.instance.onError` both record to `FirebaseCrashlytics.instance`). Analytics events without personal content are still Later (not wired by this plan).
