@@ -80,11 +80,12 @@ it emits (infra field, not a domain field — do not add it to
 | `items` | array\<string\> | snapshot at wear time, per existing semantics — never re-derived from the live outfit |
 | `timestamp` | Firestore Timestamp | maps to `DateTime` via `cloud_firestore`'s built-in conversion |
 
-Query pattern: `OutfitsRepository.watchWearEvents()` orders by `timestamp
-descending` (matches `OutfitsCubit.wearEvents()`'s existing sort) — add a
-single-field index if Firestore's automatic indexing doesn't cover it
-(single-field descending is automatic; no composite index needed since
-there's no additional `where` clause).
+**2026-10-20 (F22/Task 9):** stale note corrected — `watchWearEvents()`
+issues no `orderBy` at all; it is a bare `snapshots()` on the collection,
+sorted client-side in Dart (newest-first, tie-broken by id descending),
+matching `OutfitsCubit.wearEvents()`'s existing sort. No index of any kind
+is needed for this collection (confirmed F22-A49; see §8 below and
+`docs/features/F22-firestore-rules-hardening.md` §8).
 
 ## 5. `users/{uid}/plannedEntries/{dateKey}`
 
@@ -135,22 +136,41 @@ Per the inventory's "cross-cutting flags," these stay exactly as in-memory
 
 ## 8. Security rules (extends `firestore.rules`)
 
-Current `firestore.rules` already restricts everything under
-`users/{uid}/{document=**}` to `request.auth.uid == uid`. Task 9 adds
-per-collection field validation on top (not loosening the owner check):
+**2026-10-20 (F22/Task 9): done, corrected.** The example below as
+originally written used a single `allow write: if ... request.resource.data
+.keys()...` clause. That denies every delete outright, because
+`request.resource` is `null` on a delete request, and it omitted the
+`request.auth != null` guard and `allow read`. `firestore.rules` now splits
+`delete` into its own clause (ownership only) from `create`/`update` (owner
++ field validation), and every field check is "absent, or correctly typed"
+— never `hasAll` — because several real write paths legitimately produce
+partial documents (profile merge-sets before bootstrap, `saveTrip`'s edit
+branch, `upsertManual`'s edit branch needing a real `NOT_FOUND`). Full
+rationale, the six implemented blocks, and the emulator-proven assertions
+are in `docs/features/F22-firestore-rules-hardening.md` §5/§7/§11.
 
 ```
 match /users/{uid}/wardrobeItems/{itemId} {
-  allow write: if request.auth.uid == uid
+  function isOwner() { return request.auth != null && request.auth.uid == uid; }
+
+  allow read, delete: if isOwner();
+  allow create, update: if isOwner()
     && request.resource.data.keys().hasOnly(
          ['id','name','category','color','occasion','season','wears','sourceId','imageUrl'])
-    && request.resource.data.wears is int && request.resource.data.wears >= 0;
+    && (!('id' in request.resource.data)
+        || (request.resource.data.id is string && request.resource.data.id == itemId))
+    && (!('wears' in request.resource.data)
+        || (request.resource.data.wears is int && request.resource.data.wears >= 0))
+    // sourceId/imageUrl are the one place explicit `null` is accepted —
+    // every other field in this document rejects it.
+    && (!('sourceId' in request.resource.data)
+        || request.resource.data.sourceId == null
+        || request.resource.data.sourceId is string);
 }
 # ...one analogous block per collection in §2-6, each checking its own
 # field set and the invariants already enforced client-side today
 # (e.g. outfits.worn >= 0, wearEvents.items is a list).
 ```
 
-Full rule blocks are written during Task 9's implementation (feature-local
-detail, not architecture) — this section fixes the *shape* every block
-follows so review has a consistent bar.
+This section fixes the *shape* every block follows; the live
+`firestore.rules` is the source of truth for the exact, current field sets.

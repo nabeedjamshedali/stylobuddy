@@ -1,15 +1,133 @@
 rules_version = '2';
 
-// Default-deny; each feature opens exactly the collections it owns as
-// backend wiring lands. Every document path is scoped under the owning
-// user's uid so one user can never read/write another's data.
+// Default-deny; each collection below is the owning user's own, exactly
+// validated subtree (F22 doc §5/§7). No rule here reads another document —
+// no cross-document lookup function is called anywhere below (F22-A06) — so
+// the 27-write D5 bootstrap transaction incurs no extra document-access
+// reads. Every `create`/`update` check is
+// "absent, or correctly typed" (never `hasAll`) because several real write
+// paths legitimately produce partial documents — see F22 doc §5 points 2-3
+// and task-9-report.md for the per-field rationale. `delete` is always its
+// own clause, never gated on `request.resource` (null on delete).
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
 
-      match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+      // `list`/`runQuery` on the top-level `users` collection is denied for
+      // everyone, including the owner, constrained or not (F22-A05) — this
+      // is deliberately `allow get` (not `allow read`, which is a composite
+      // of get+list+listen in Firestore's security rules language and would
+      // also grant list/runQuery on this collection).
+      allow get: if isOwner();
+      allow delete: if isOwner();
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly([
+             'name', 'email', 'styles', 'occasions', 'dailyNotifications',
+             'plannedNotifications', 'productNotifications', 'weatherConsent',
+             'climate', 'plan', 'billingCycle', 'wishlist', 'seeded',
+           ])
+        && (!('name' in request.resource.data) || request.resource.data.name is string)
+        && (!('email' in request.resource.data) || request.resource.data.email is string)
+        && (!('styles' in request.resource.data) || request.resource.data.styles is list)
+        && (!('occasions' in request.resource.data) || request.resource.data.occasions is list)
+        && (!('dailyNotifications' in request.resource.data) || request.resource.data.dailyNotifications is bool)
+        && (!('plannedNotifications' in request.resource.data) || request.resource.data.plannedNotifications is bool)
+        && (!('productNotifications' in request.resource.data) || request.resource.data.productNotifications is bool)
+        && (!('weatherConsent' in request.resource.data) || request.resource.data.weatherConsent is bool)
+        && (!('climate' in request.resource.data) || request.resource.data.climate is string)
+        && (!('plan' in request.resource.data) || request.resource.data.plan is string)
+        && (!('billingCycle' in request.resource.data) || request.resource.data.billingCycle is string)
+        && (!('wishlist' in request.resource.data) || request.resource.data.wishlist is list)
+        && (!('seeded' in request.resource.data) || request.resource.data.seeded is bool);
+
+      match /wardrobeItems/{itemId} {
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner()
+          && request.resource.data.keys().hasOnly([
+               'id', 'name', 'category', 'color', 'occasion', 'season',
+               'wears', 'sourceId', 'imageUrl',
+             ])
+          && (!('id' in request.resource.data)
+              || (request.resource.data.id is string && request.resource.data.id == itemId))
+          && (!('name' in request.resource.data) || request.resource.data.name is string)
+          && (!('category' in request.resource.data) || request.resource.data.category is string)
+          && (!('color' in request.resource.data) || request.resource.data.color is string)
+          && (!('occasion' in request.resource.data) || request.resource.data.occasion is string)
+          && (!('season' in request.resource.data) || request.resource.data.season is string)
+          && (!('wears' in request.resource.data)
+              || (request.resource.data.wears is int && request.resource.data.wears >= 0))
+          // Explicit null is accepted ONLY here (F22 doc §5 point 3): every
+          // SeedData item and every photo-less item writes these as literal
+          // null, not an absent key.
+          && (!('sourceId' in request.resource.data)
+              || request.resource.data.sourceId == null
+              || request.resource.data.sourceId is string)
+          && (!('imageUrl' in request.resource.data)
+              || request.resource.data.imageUrl == null
+              || request.resource.data.imageUrl is string);
+      }
+
+      match /outfits/{outfitId} {
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner()
+          && request.resource.data.keys().hasOnly(['id', 'name', 'occasion', 'why', 'items', 'worn'])
+          && (!('id' in request.resource.data)
+              || (request.resource.data.id is int && string(request.resource.data.id) == outfitId))
+          && (!('name' in request.resource.data) || request.resource.data.name is string)
+          && (!('occasion' in request.resource.data) || request.resource.data.occasion is string)
+          && (!('why' in request.resource.data) || request.resource.data.why is string)
+          && (!('items' in request.resource.data) || request.resource.data.items is list)
+          && (!('worn' in request.resource.data)
+              || (request.resource.data.worn is int && request.resource.data.worn >= 0));
+      }
+
+      match /wearEvents/{eventId} {
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner()
+          && request.resource.data.keys().hasOnly(['id', 'outfitId', 'name', 'occasion', 'items', 'timestamp'])
+          && (!('id' in request.resource.data)
+              || (request.resource.data.id is int && string(request.resource.data.id) == eventId))
+          && (!('outfitId' in request.resource.data) || request.resource.data.outfitId is int)
+          && (!('name' in request.resource.data) || request.resource.data.name is string)
+          && (!('occasion' in request.resource.data) || request.resource.data.occasion is string)
+          && (!('items' in request.resource.data) || request.resource.data.items is list)
+          && (!('timestamp' in request.resource.data) || request.resource.data.timestamp is timestamp);
+      }
+
+      match /plannedEntries/{dateKey} {
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner()
+          // dateKey format the app always produces ('yyyy-MM-dd',
+          // PlannerCubit/SeedData.planned); an impossible-but-well-formed
+          // date like '2026-13-45' is accepted (F22 doc §12 edge case) —
+          // calendar validity is not a rules concern.
+          && dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.keys().hasOnly(['outfitId', 'occasion'])
+          && (!('outfitId' in request.resource.data) || request.resource.data.outfitId is int)
+          && (!('occasion' in request.resource.data) || request.resource.data.occasion is string);
+      }
+
+      match /packingTrips/{tripId} {
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner()
+          && request.resource.data.keys().hasOnly([
+               'id', 'name', 'destination', 'start', 'end', 'type', 'notes',
+               'days', 'items',
+             ])
+          && (!('id' in request.resource.data)
+              || (request.resource.data.id is string && request.resource.data.id == tripId))
+          && (!('name' in request.resource.data) || request.resource.data.name is string)
+          && (!('destination' in request.resource.data) || request.resource.data.destination is string)
+          && (!('start' in request.resource.data) || request.resource.data.start is string)
+          && (!('end' in request.resource.data) || request.resource.data.end is string)
+          && (!('type' in request.resource.data) || request.resource.data.type is string)
+          && (!('notes' in request.resource.data) || request.resource.data.notes is string)
+          && (!('days' in request.resource.data)
+              || (request.resource.data.days is int && request.resource.data.days >= 1))
+          && (!('items' in request.resource.data) || request.resource.data.items is list);
       }
     }
   }
