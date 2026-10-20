@@ -21,6 +21,8 @@ import 'features/saved/cubit/outfits_cubit.dart';
 import 'features/saved/repository/firestore_outfits_repository.dart';
 import 'features/saved/repository/in_memory_outfits_repository.dart';
 import 'features/shopping/cubit/shopping_cubit.dart';
+import 'features/shopping/repository/firestore_shopping_repository.dart';
+import 'features/shopping/repository/in_memory_shopping_repository.dart';
 import 'features/stylist/cubit/stylist_cubit.dart';
 import 'features/wardrobe/cubit/import_cubit.dart';
 import 'features/wardrobe/cubit/wardrobe_browse_cubit.dart';
@@ -280,7 +282,16 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
             BlocProvider(
               create: (context) => BuilderCubit(context.read<OutfitsCubit>()),
             ),
-            BlocProvider(create: (_) => ShoppingCubit()),
+            BlocProvider(
+              create: (_) => ShoppingCubit(
+                repository: snapshot.data == null
+                    ? InMemoryShoppingRepository()
+                    : FirestoreShoppingRepository(
+                        FirestoreService(firestore: widget.firestoreOverride),
+                        snapshot.data!,
+                      ),
+              ),
+            ),
             BlocProvider(create: (_) => PackingCubit()),
           ],
           // _RoutedMaterialApp is a child of this uid-keyed MultiBlocProvider

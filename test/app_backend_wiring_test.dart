@@ -1049,4 +1049,67 @@ void main() {
       expect(PendingOnboardingSelections.consume(), isEmpty);
     },
   );
+
+  testWidgets(
+    'F19_A11 lib/app.dart constructs ShoppingCubit with InMemoryShoppingRepository when uid == null and with FirestoreShoppingRepository when uid == uid-1 — object type differs across the sign-in/out transition, driven through the real StyloBuddyApp',
+    (tester) async {
+      // Seed the fake Firestore directly (as a real signed-in user's
+      // pre-existing document would be) before StyloBuddyApp is ever
+      // pumped, so this exercises app.dart's own dual-mode construction
+      // (not a hand-built ShoppingCubit) actually reading from Firestore.
+      final firestore = FakeFirebaseFirestore();
+      await firestore.collection('users').doc('uid-1').set({
+        'wishlist': ['firestore-only-item'],
+        'seeded': true,
+      });
+
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Guest-mode first frame: the uid-keyed subtree must show the
+      // default empty wishlist, never the Firestore-seeded signed-in one.
+      var context = tester.element(find.byType(MaterialApp));
+      expect(context.read<ShoppingCubit>().state.wishlist, isEmpty);
+
+      controller.add('uid-1');
+      // Per the implementer contract's "Known gotcha": a bare
+      // pumpAndSettle()/microtask flush is not reliable here because
+      // nothing is actively listening to ShoppingCubit via a BlocBuilder
+      // in this test — poll with a bounded timeout instead.
+      bool sawFirestoreWishlist = false;
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        sawFirestoreWishlist = context
+            .read<ShoppingCubit>()
+            .state
+            .wishlist
+            .contains('firestore-only-item');
+        if (sawFirestoreWishlist) break;
+      }
+
+      expect(
+        sawFirestoreWishlist,
+        isTrue,
+        reason:
+            'a signed-in uid must read from FirestoreShoppingRepository, '
+            'not from the hardcoded InMemoryShoppingRepository default — '
+            "app.dart's dual-mode ternary must have actually swapped the "
+            'repository implementation',
+      );
+    },
+  );
 }
