@@ -14,7 +14,7 @@
 > D7), `docs/superpowers/specs/2026-10-19-firestore-schema.md` §2, and
 > `docs/superpowers/specs/2026-10-19-supabase-storage-and-functions.md` §1-2.
 
-**Status:** IN PROGRESS (Gates 1-3 closed; Gate 4 open — A26 pending live device run) · **Milestone:** 2 · **Depends on:** F06, F14
+**Status:** DONE (Gates 1-3 closed; Gate 4 — A26 `[L]` live device run — pending) · **Milestone:** 2 · **Depends on:** F06, F14
 
 ---
 

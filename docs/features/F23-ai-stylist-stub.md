@@ -17,7 +17,7 @@
 > `storage-upload-url/index.ts` + `index.test.ts` set the handler and test
 > pattern this task follows.
 
-**Status:** Gates 1-3 done, Gate 4 pending (live deploy, §13 Q2) · **Milestone:** 2 · **Depends on:** F15
+**Status:** DONE (Gates 1-3 closed — A01-A21+A25, 22/22 non-deferred assertions; Gate 4 — A22-A24, production deploy — deferred pending an explicit human go-ahead, §13 Q2) · **Milestone:** 2 · **Depends on:** F15
 
 ---
 

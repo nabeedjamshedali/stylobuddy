@@ -11,7 +11,7 @@
 > `docs/superpowers/specs/2026-10-19-backend-architecture.md` (D2, D4, D6)
 > and `docs/superpowers/specs/2026-10-19-firestore-schema.md` §5 and §7.
 
-**Status:** BUILT (A01-A18 implemented/tested; A19 `[L]` deferred) · **Milestone:** 2 · **Depends on:** F14
+**Status:** DONE (Gates 1-3 closed; Gate 4 — A19 `[L]` live device run — pending) · **Milestone:** 2 · **Depends on:** F14
 
 ---
 

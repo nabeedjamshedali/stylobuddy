@@ -19,7 +19,7 @@
 > on 2026-10-20 and does not block this task. It changes only the auth
 > provider, never the shape of a Firestore document.
 
-**Status:** NOT STARTED · **Milestone:** 2 · **Depends on:** F14, F15, F16, F17, F18, F19, F20 (F21 deferred, non-blocking)
+**Status:** DONE (Gates 1-3 closed, emulator-proven — A01-A49+A46b, 50/54 assertions; Gate 4 — A50-A53, production audit/deploy/live-smoke/rollback — deferred pending an explicit human go-ahead) · **Milestone:** 2 · **Depends on:** F14, F15, F16, F17, F18, F19, F20 (F21 deferred, non-blocking)
 
 ---
 
@@ -633,13 +633,15 @@ step. The emulator work can proceed without it.**
 Filled in during the build. See `foundation/05-testing-and-dod.md`.
 
 ```
-Status: NOT STARTED
+Status: DONE (Gates 1-3, emulator-proven; Gate 4 deferred pending an explicit human go-ahead)
 
-[ ] Gate 1  Interface documented
-[ ] Gate 2  Unit
-[ ] Gate 3  Integration (emulator)
+[x] Gate 1  Interface documented
+[x] Gate 2  Unit
+[x] Gate 3  Integration (emulator) — 55/55, committed as 6a2c380
 [ ] Gate 4  Live run (gated production deploy, §13 Q1 — controller go-ahead: ____ )
 
-Assertions: 0/54 PASS
-Regression: —
+Assertions: 50/54 PASS (A01-A49 + A46b). 4 deferred (A50-A53, production
+audit/deploy/live-smoke/rollback) pending an explicit human go-ahead.
+Regression: flutter analyze clean; default `flutter test` unaffected
+(593 passed/9 skipped, the new suite correctly excluded by default).
 ```

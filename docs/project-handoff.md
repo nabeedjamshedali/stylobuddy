@@ -1,28 +1,38 @@
 # StyloBuddy — Project Handoff
 
-Rewritten 2026-10-17, after Task 14 (final integration pass) of the
-`2026-10-16-prototype-port` plan. This repo has the `flutter-app-dev-agent`
-kit installed (`CLAUDE.md` + `.claude/agents/*.md`) — read those first if
-you haven't. This doc replaces the 2026-10-13 version, which described an
-early 3-screen onboarding scaffold; that scope has since been superseded
-entirely by a full screen-for-screen port of the StyloBuddy HTML
-prototype. Don't rely on the old version for anything.
+Rewritten 2026-10-20, after Task 11 (integration/docs pass) of the
+`docs/superpowers/plans/2026-10-19-backend-wiring.md` plan. This repo has
+the `flutter-app-dev-agent` kit installed (`CLAUDE.md` + `.claude/agents/
+*.md`) — read those first if you haven't. This doc replaces the
+2026-10-17 version, which described the app as "not yet a backend-
+integrated product" — that is no longer true. Don't rely on the old
+version for anything.
 
 ## What this app actually is right now
 
-A **complete 64-screen prototype port**, not yet a backend-integrated
-product. Every screen from the HTML/JS prototype
+A **complete 64-screen prototype port with real backend wiring behind
+every data-owning feature**: Firebase Auth (Google sign-in), Firestore
+(wardrobe, outfits/wear events, planner, profile, shopping wishlist,
+packing), and Supabase Storage (wardrobe photo uploads) are all real and
+dual-mode — **guest mode is byte-identical to the pre-backend-wiring
+in-memory behavior** (nothing changed for a user who never signs in),
+and signing in with Google switches every Cubit onto a Firestore-backed
+repository behind the exact same public API. Firestore security rules
+are hardened and proven against the emulator, though the production
+deploy is intentionally held back (see "What's explicitly NOT done"
+below). An Edge Function stub (`ai-stylist`) exists but is not wired to
+any screen — the AI/LLM provider choice is still an open, deliberately
+deferred decision.
+
+Every screen from the HTML/JS prototype
 (`stylobuddy-v23-mobile-icon-final/stylobuddy-prototype/` at the repo
-root — untracked, the user's reference copy, never edit or delete it) has
-been rebuilt as a real Flutter screen, wired to Cubit state management and
-`go_router` navigation. A representative sample of screens across every
-feature was visually verified side-by-side against the prototype (see
-"Visual parity pass" below) — this was a sample, not an inspection of all
-63 routes.
-**All data is in-memory sample data** (`lib/shared/data/seed_data.dart` +
-Cubits holding state in RAM) — nothing is persisted, there is no real
-authentication, and no backend service has been wired in. Closing the app
-loses all changes.
+root — untracked, the user's reference copy, never edit or delete it) was
+rebuilt as a real Flutter screen, wired to Cubit state management and
+`go_router` navigation; a representative sample was visually verified
+side-by-side against the prototype during the original prototype-port
+plan (see "Visual parity pass" below) — that was a sample, not an
+inspection of all 63 routes, and nothing in the backend-wiring plan
+re-ran it (no screen's UI changed, only what's behind each Cubit).
 
 ### What's done
 
@@ -73,54 +83,128 @@ loses all changes.
   real-device issue).
 - **Android build**: `flutter build apk --debug` succeeds
   (`build/app/outputs/flutter-apk/app-debug.apk`).
+- **Backend wiring (`2026-10-19-backend-wiring` plan, Tasks 1-7, 9, 10 —
+  9 of 11 tasks, Task 8 skipped by user decision, Task 11 is this doc
+  pass)**:
+  - **Firebase Auth**: real Google sign-in (`AuthRepository
+    .signInWithGoogle`/`.signOut`). Email/password forms stay demo-only
+    client-side validation with no backend call — **by explicit user
+    decision** (2026-10-20: "google auth is fine for now, don't do
+    manually email password login"). `lib/app.dart`'s uid-keyed
+    `StreamBuilder` reconstructs every data-owning Cubit against a
+    Firestore-backed repository on sign-in, an in-memory one on
+    sign-out — same public Cubit API either way.
+  - **Firestore**: every feature that owns durable data has a dual-mode
+    repository (interface + `InMemory*`/`Firestore*` implementation):
+    wardrobe (F15), outfits/wear events (F16), planner (F17), profile +
+    wishlist (F18/F19), packing (F20). Guest mode is the pre-existing
+    in-memory logic moved behind an interface, verbatim — same
+    synchronous timing, same tests, byte-identical behavior. A new
+    user's first sign-in runs one combined bootstrap transaction (F18)
+    seeding wardrobe/outfits/planner/profile under a single `seeded`
+    flag. Every optimistic-update rollback is targeted (reverts only the
+    one field/item that failed, against current state) — this bug class
+    (a whole-object/whole-list rollback clobbering an unrelated
+    concurrent change) hit three different features during review and
+    was fixed the same way each time.
+  - **Supabase Storage**: `storage-upload-url` Edge Function issues a
+    real signed upload URL scoped to the caller's own Firebase uid
+    (F15); the service-role key never reaches the Flutter client.
+  - **Supabase Edge Functions**: `storage-upload-url` (real, F15).
+    `ai-stylist` (stub only, F23) — see "AI is explicitly deferred"
+    below.
+  - **Firestore security rules**: hardened from a blanket owner-only
+    wildcard to six per-collection blocks with field-level `hasOnly`
+    validation and type/invariant checks, proven against the Firestore
+    emulator (55/55, F22). **The production deploy has NOT run** — see
+    below.
+  - **Tests**: full suite green, 595/595 (`flutter test`). `flutter
+    analyze` reports "No issues found!". `flutter build apk --debug`
+    succeeds. Most feature document assertions have a covering test
+    named after its assertion ID. Every feature's `[L]` live-device-run
+    assertion is honestly deferred (no test fakes it) — it needs an
+    actual Android device/emulator, which was not available in the
+    environment this plan was executed in (see "Where to pick up next").
 
 ### What's explicitly NOT done — don't assume otherwise
 
-This is the single most important thing for the next session to
-internalize: **zero backend integration exists**. Specifically, none of
-the following from `.claude/agents/tech-stack.md` has been wired in yet:
-
-- **Firebase Auth** — F02's login/signup/forgot/verify screens are UI
-  only, backed by in-memory `S.auth`-style state (no `firebase_auth`
-  package calls, no real session).
-- **Firestore** — no persistence at all. Wardrobe items, outfits, planned
-  calendar entries, trips, wishlist, profile — all of it lives only in
-  Cubit state for the lifetime of the app process, seeded from
-  `lib/shared/data/seed_data.dart` on launch.
-- **Supabase Storage** — the wardrobe "import"/"add item" flow is fully
-  simulated (`lib/features/wardrobe/cubit/import_cubit.dart`); no real
-  image upload.
-- **Supabase Edge Functions** — none exist.
+- **AI / LLM provider — a deliberately deferred decision, not an
+  oversight.** `ai-stylist` is a real, deployable-but-not-deployed Edge
+  Function: it verifies the caller's Firebase token, then returns 501
+  "AI provider not configured yet" via a `getLlmAdapter()` seam that has
+  zero providers registered (by design — `llm-adapter.ts` has no
+  imports, no `fetch`, no implementation). **No Flutter screen calls
+  it.** `StylistCubit`'s existing algorithmic generation (templates,
+  `createMatches`) is completely untouched. **The user has not chosen a
+  provider (Claude/OpenAI/other) yet — this is a standing reminder to
+  raise with them, not something to decide unilaterally.**
+- **Firestore rules production deploy** — the hardened rules exist in
+  `firestore.rules` and pass 55/55 against the emulator, but
+  `firebase deploy --only firestore:rules` has never been run. A rule
+  stricter than the real app silently rolls back optimistic UI writes
+  and can permanently block a new user's bootstrap — this needs a clean
+  pre-deploy production-data audit and an explicit go-ahead, not an
+  automatic step at the end of a task.
+- **`ai-stylist` Edge Function deploy** — same deferred-deploy pattern,
+  lower risk (nothing calls it), but still a new public endpoint that
+  warrants a deliberate sign-off rather than an automatic deploy.
+- **Real email/password Firebase Auth** — skipped by explicit user
+  decision (see above). The demo-only login/signup/forgot forms are
+  unchanged from before this plan. `docs/features/F21-email-password-
+  auth.md` is kept as a drafted-but-not-implemented doc for future
+  reference, including the real scope conflict it found in the original
+  plan (the UI must change once these calls become async — "no widget
+  changes" and "real backend calls" can't both be true).
 - **RevenueCat** — F13's premium/plan/purchase/subscription screens are
   static previews; "Free" is hardcoded, no entitlement checks, no real
-  purchase flow.
-- **Firebase Analytics / Crashlytics / Remote Config** — not added.
-- **Security rules / hardening** — nothing to audit yet since there's no
-  backend; Firestore/Storage rules, Supabase auth checks, and a
-  secrets/API-key check are all still open once the above exists.
+  purchase flow. Not in scope of the backend-wiring plan.
+- **Firebase Analytics / Crashlytics / Remote Config** — not added. Not
+  in scope of the backend-wiring plan.
+- **Full manual device walkthrough** — the backend-wiring plan's Task
+  11 calls for a full sign-up → add-photo → cold-restart → sign-out →
+  sign-back-in walkthrough on a real device/emulator. **No Android
+  device or emulator was available in the environment this plan was
+  executed in** (`flutter emulators` found no AVD images, `flutter
+  devices` found none connected). This has NOT been performed —
+  everything above is verified by automated tests against
+  `fake_cloud_firestore` and the Firestore emulator, which is real
+  verification of the rules/repository logic but is not the same as
+  confirming the real app, on a real device, against the real
+  `stylobuddy-b7e46` Firestore project, behaves correctly end-to-end.
+  **This is the next concrete step** — see below.
 
-See `docs/tracker.md` for the itemized status (Design/Onboarding/Core
-Features are done; Integration and Security are PENDING).
+See `docs/tracker.md` for the itemized status.
 
 ## Where to pick up next
 
-1. **Wire Firebase**: ask the user for a service-account key, create/
-   configure the Firebase project per `.claude/agents/tech-stack.md`,
-   add `firebase_auth` + `cloud_firestore`, replace F02's simulated auth
-   state with real Firebase Auth, and replace the in-memory Cubit seed
-   data with Firestore-backed repositories (the wardrobe feature already
-   has a `WardrobeRepository` seam in `lib/features/wardrobe/repository/`
-   — extend that pattern to the other features' Cubits rather than
-   putting Firestore calls directly in Cubits/widgets).
-2. **Wire Supabase Storage** for wardrobe item photos (ask for an access
-   token), replacing the simulated import flow.
-3. **Wire RevenueCat** for the premium/subscription screens once there's
-   a real backend user to attach entitlements to.
-4. **Add Firebase Analytics/Crashlytics/Remote Config** per the standard
+1. **Run the deferred manual device walkthrough** (backend-wiring plan
+   Task 11, Step 1): on a real Android device or a configured AVD —
+   sign in with Google, add a real wardrobe item with a camera/gallery
+   photo, confirm it persists after a cold restart, sign out, confirm
+   guest mode is unaffected (seed data, no network calls), sign back in,
+   confirm the same real data reappears. This needs either a physical
+   device plugged in or an Android SDK with at least one AVD image —
+   neither was available in the environment this plan ran in.
+2. **Decide the production Firestore rules deploy timing.** The rules
+   are written and emulator-proven (F22); deploying them
+   (`firebase deploy --only firestore:rules --project stylobuddy-b7e46`)
+   needs a pre-deploy production-data audit (checking no existing
+   document already violates the new field-level rules) and an explicit
+   go-ahead, since a bad deploy silently breaks real users' writes.
+3. **Decide the `ai-stylist` Edge Function deploy timing** (lower risk
+   than the rules deploy, but still a real production action —
+   `supabase functions deploy ai-stylist --project-ref
+   dbaeaqyoyilxcuwplvuw`).
+4. **Choose an LLM/AI provider** when ready — this unblocks wiring a
+   real `generateOutfitSuggestion` implementation behind
+   `getLlmAdapter()` and, eventually, a Flutter screen calling
+   `ai-stylist`. Standing deferred decision — raise with the user, don't
+   decide for them.
+5. **Wire RevenueCat** for the premium/subscription screens once
+   there's a real backend user to attach entitlements to.
+6. **Add Firebase Analytics/Crashlytics/Remote Config** per the standard
    kit wiring.
-5. Once backend wiring exists, run a security/hardening pass (Firestore
-   + Storage rules, secrets check) before shipping.
-6. iOS: this port has only been built/verified for Android + web (for
+7. iOS: this port has only been built/verified for Android + web (for
    the parity screenshots). No iOS-specific work has been done; expect
    the usual iOS packaging/signing setup when that becomes a priority.
 

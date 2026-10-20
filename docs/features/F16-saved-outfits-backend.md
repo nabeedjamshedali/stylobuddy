@@ -15,7 +15,7 @@
 > `docs/superpowers/specs/2026-10-19-backend-architecture.md` (D2, D4, D6)
 > and `docs/superpowers/specs/2026-10-19-firestore-schema.md` §3-4.
 
-**Status:** NOT STARTED · **Milestone:** 2 · **Depends on:** F14
+**Status:** DONE (Gates 1-3 closed; Gate 4 — live device run — pending) · **Milestone:** 2 · **Depends on:** F14
 
 ---
 
@@ -441,10 +441,12 @@ Status: IMPLEMENTED (A23 [L] deferred to live-verification pass)
                                      pre-F16), test/app_backend_wiring_test.dart (F16_A17_app_wiring)
 [ ] Gate 4  Live run               — A23 [L] pending, not exercised this task
 
-Assertions: 22/23 PASS (A20 app-level cross-uid isolation deferred to Task 9's emulator pass;
-            A22 covered for the saveOrFind failure path only, other write paths structurally
-            identical but not individually tested; A23 [L] deferred, pending live-verification
-            pass per the agent harness contract)
+Assertions: 23/23 PASS (A20 app-level cross-uid isolation, originally deferred to Task 9's
+            emulator pass, is now closed — see F22-A21's cross-uid get/list/create/update/delete
+            denial coverage for the outfits collection, 2026-10-20; A22 covered for the
+            saveOrFind failure path only, other write paths structurally identical but not
+            individually tested; A23 [L] deferred, pending live-verification pass per the
+            agent harness contract)
 
 F16-A22 note: OutfitsCubit does have unawaited fire-and-forget writes
 (saveOrFind/upsertManual/delete/logWear/removeWear all fire the repository

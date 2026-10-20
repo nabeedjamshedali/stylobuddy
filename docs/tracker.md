@@ -27,17 +27,53 @@
 - [x] Full test suite passing (`flutter test`), `flutter analyze` clean
 - [x] `flutter build apk --debug` succeeds
 
-## Integration — PENDING (none of this is wired in yet)
-- [ ] Firebase Auth (real sign-in/sign-up — current F02 screens are UI-only against in-memory state)
-- [ ] Firestore (all data is currently in-memory sample/seed data via Cubits, nothing persisted)
-- [ ] Supabase Storage (no image upload/storage wiring — wardrobe "import" flow is simulated)
-- [ ] Supabase Edge Functions (none created)
-- [ ] RevenueCat (premium/subscription screens are UI previews only — "Free" plan is hardcoded, no entitlement checks)
-- [ ] Firebase Analytics
-- [ ] Firebase Crashlytics
-- [ ] Firebase Remote Config (feature flags / forced update)
+## Integration — DONE for Firestore/Storage; AI explicitly PENDING
+`2026-10-19-backend-wiring` plan, 11 tasks: 9 complete, 1 skipped by
+explicit user decision, 1 (this integration/docs pass) in progress.
+- [x] Firebase Auth — real Google sign-in wired (F14); email/password
+      stays demo-only, **by explicit user decision** (2026-10-20: "google
+      auth is fine for now, don't do manually email password login" —
+      Task 8/F21 skipped, kept as a drafted-but-deferred doc)
+- [x] Firestore — every feature's data (wardrobe, outfits/wear events,
+      planner, profile, shopping wishlist, packing) is dual-mode: guest
+      stays in-memory (byte-identical to pre-backend-wiring behavior),
+      signed-in reads/writes real Firestore (F14-F20)
+- [x] Supabase Storage — real signed upload URLs for wardrobe photos via
+      the `storage-upload-url` Edge Function (F15)
+- [x] Supabase Edge Functions — `storage-upload-url` (real, deployed,
+      F15); `ai-stylist` (stub only, F23 — see AI note below)
+- [x] Firestore security rules — hardened, per-collection field
+      validation, proven against the emulator (55/55, F22). **Production
+      deploy is deferred pending an explicit go-ahead** (a rule stricter
+      than the real app silently rolls back optimistic UI writes and can
+      permanently block new-user bootstraps — not something to ship
+      without a dedicated pre-deploy data audit)
+- [ ] RevenueCat (premium/subscription screens are UI previews only —
+      "Free" plan is hardcoded, no entitlement checks) — not in scope of
+      the backend-wiring plan, still open
+- [ ] Firebase Analytics — not in scope of the backend-wiring plan, still
+      open
+- [ ] Firebase Crashlytics — not in scope of the backend-wiring plan,
+      still open
+- [ ] Firebase Remote Config (feature flags / forced update) — not in
+      scope of the backend-wiring plan, still open
+- [ ] **AI / LLM provider — explicitly PENDING, deferred decision.** The
+      `ai-stylist` Edge Function is scaffolded as a stub (F23): real
+      token verification, a swappable `getLlmAdapter()` seam that returns
+      `null` with zero providers registered, 501 "not configured yet"
+      response. No Flutter screen calls it. `StylistCubit`'s existing
+      algorithmic generation is untouched. **The user has not chosen an
+      LLM provider yet** — this is saved as a standing reminder, to be
+      raised once this integration pass is reviewed, not re-litigated
+      here.
 
-## Security & Hardening — PENDING (end-of-cycle only)
-- [ ] Firestore/Storage rules audit
-- [ ] Supabase auth checks
-- [ ] Secrets/API key check
+## Security & Hardening
+- [x] Firestore rules audit — done, emulator-proven (F22); production
+      deploy gated on an explicit go-ahead (see above)
+- [ ] Supabase auth checks — `firebase-auth.ts`'s JWT verification is
+      covered by both Edge Functions' tests; a dedicated audit pass
+      beyond that hasn't been run
+- [ ] Secrets/API key check — not run as a dedicated pass this cycle;
+      no secret is committed to the repo (service-account keys and
+      Supabase tokens are supplied out-of-band, never placed under `lib/`
+      or `supabase/functions/`, per standing project convention)
