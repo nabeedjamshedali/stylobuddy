@@ -1112,4 +1112,78 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'F20_A11 lib/app.dart constructs PackingCubit with InMemoryPackingRepository when uid == null and with FirestorePackingRepository when uid == uid-1 — object type differs across the sign-in/out transition, driven through the real StyloBuddyApp',
+    (tester) async {
+      // Seed the fake Firestore directly (as a real signed-in user's
+      // pre-existing document would be) before StyloBuddyApp is ever
+      // pumped, so this exercises app.dart's own dual-mode construction
+      // (not a hand-built PackingCubit) actually reading from Firestore.
+      final firestore = FakeFirebaseFirestore();
+      await firestore
+          .collection('users/uid-1/packingTrips')
+          .doc('trip-firestore-only')
+          .set({
+            'id': 'trip-firestore-only',
+            'name': 'Firestore-only trip',
+            'destination': '',
+            'start': '2026-11-01',
+            'end': '2026-11-02',
+            'type': 'Vacation',
+            'notes': '',
+            'days': 2,
+            'items': <Map<String, dynamic>>[],
+          });
+      await firestore.collection('users').doc('uid-1').set({'seeded': true});
+
+      final controller = StreamController<String?>();
+      addTearDown(controller.close);
+      await tester.pumpWidget(
+        StyloBuddyApp(
+          firestoreOverride: firestore,
+          router: createAppRouter(),
+          uidStream: controller.stream,
+          initialUid: null,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Guest-mode first frame: the uid-keyed subtree must show the
+      // default empty trip list, never the Firestore-seeded signed-in one.
+      var context = tester.element(find.byType(MaterialApp));
+      expect(context.read<PackingCubit>().state.trips, isEmpty);
+
+      controller.add('uid-1');
+      // Per the implementer contract's "Known gotcha": a bare
+      // pumpAndSettle()/microtask flush is not reliable here because
+      // nothing is actively listening to PackingCubit via a BlocBuilder
+      // in this test — poll with a bounded timeout instead.
+      bool sawFirestoreTrip = false;
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+        context = tester.element(find.byType(MaterialApp));
+        sawFirestoreTrip = context
+            .read<PackingCubit>()
+            .state
+            .trips
+            .any((t) => t.id == 'trip-firestore-only');
+        if (sawFirestoreTrip) break;
+      }
+
+      expect(
+        sawFirestoreTrip,
+        isTrue,
+        reason:
+            'a signed-in uid must read from FirestorePackingRepository, '
+            'not from the hardcoded InMemoryPackingRepository default — '
+            "app.dart's dual-mode ternary must have actually swapped the "
+            'repository implementation',
+      );
+    },
+  );
 }

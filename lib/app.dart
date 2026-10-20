@@ -14,6 +14,8 @@ import 'features/calendar/cubit/planner_cubit.dart';
 import 'features/calendar/repository/firestore_planner_repository.dart';
 import 'features/calendar/repository/in_memory_planner_repository.dart';
 import 'features/packing/cubit/packing_cubit.dart';
+import 'features/packing/repository/firestore_packing_repository.dart';
+import 'features/packing/repository/in_memory_packing_repository.dart';
 import 'features/profile/cubit/profile_cubit.dart';
 import 'features/profile/repository/firestore_profile_repository.dart';
 import 'features/profile/repository/in_memory_profile_repository.dart';
@@ -292,7 +294,16 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
                       ),
               ),
             ),
-            BlocProvider(create: (_) => PackingCubit()),
+            BlocProvider(
+              create: (_) => PackingCubit(
+                repository: snapshot.data == null
+                    ? InMemoryPackingRepository()
+                    : FirestorePackingRepository(
+                        FirestoreService(firestore: widget.firestoreOverride),
+                        snapshot.data!,
+                      ),
+              ),
+            ),
           ],
           // _RoutedMaterialApp is a child of this uid-keyed MultiBlocProvider
           // (not a sibling built directly here), so when the ValueKey above
