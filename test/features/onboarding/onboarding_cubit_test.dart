@@ -15,7 +15,7 @@ void main() {
       expect(cubit.state.slide, 0);
 
       cubit.back();
-      expect(cubit.state.exit, OnboardingExit.backToWelcome);
+      expect(cubit.state.exit, OnboardingExit.backToGender);
       expect(cubit.state.slide, 0);
       cubit.clearExit();
 

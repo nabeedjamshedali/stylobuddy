@@ -253,11 +253,16 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
                 // under the single shared `seeded` flag, per the
                 // controller ruling.
                 final pendingOccasions = PendingOnboardingSelections.consume();
+                // F24: the /gender choice rides the same bootstrap seed;
+                // consumed (cleared) exactly once here even when the uid is
+                // already seeded, so it never leaks into a later sign-up.
+                final pendingGender = PendingOnboardingSelections.consumeGender();
                 final profileHint = currentUserProfileHint();
                 unawaited(
                   repository
                       .bootstrapIfNeeded(
                         pendingOccasions: pendingOccasions,
+                        gender: pendingGender,
                         name: profileHint.name,
                         email: profileHint.email,
                         seedWriter: _bootstrapOtherFeatures,

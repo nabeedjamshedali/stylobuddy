@@ -231,7 +231,7 @@ before a deploy does.
 
 ```text
 one emulator transaction as owner of a fresh uid:
-  set users/{uid}  = ProfileRepository bootstrap payload (11 ProfileState keys + wishlist [] + seeded true)
+  set users/{uid}  = ProfileRepository bootstrap payload (11 ProfileState keys, 12 from 2026-10-22 when a gender was chosen (F24) + wishlist [] + seeded true)
   set 23 x wardrobeItems/{SeedData item id} = FirestoreWardrobeRepository.seedFieldsFor(item)
   set  2 x outfits/{id}                     = FirestoreOutfitsRepository.seedFieldsForOutfit(outfit)
   set  1 x plannedEntries/2026-10-15        = FirestorePlannerRepository.seedFieldsFor(entry)
@@ -292,6 +292,13 @@ from `docs/foundation/03-domain-model.md`, as mapped in `firestore-schema.md`
 | `wearEvents/{eventId}` | `id`, `outfitId`, `name`, `occasion`, `items`, `timestamp` (`WearEvent`) | `id is int && string(id) == eventId`. `outfitId is int`. Strings: name, occasion. `items is list`. `timestamp is timestamp`. |
 | `plannedEntries/{dateKey}` | `outfitId`, `occasion` (`PlannedEntry`) | `outfitId is int`, `occasion is string`. Doc ID `dateKey` matches `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, the padded key `PlannerCubit` and `SeedData.planned` always produce. |
 | `packingTrips/{tripId}` | `id`, `name`, `destination`, `start`, `end`, `type`, `notes`, `days`, `items` (`Trip`) | `id is string && id == tripId`. Strings: name, destination, start, end, type, notes. `days is int && days >= 1` (`PackingCubit._daysBetween` clamps to ≥1). `items is list` (elements are `PackingItem` maps `{key, label, wardrobeId, packed}`, not checkable per element, §12). |
+
+> Note 2026-10-22 (F24): the `users/{uid}` row gains a 14th allowed key,
+> `gender` (from `ProfileState.gender`, F24), with the check
+> `!('gender' in data) || data.gender in ['male', 'female']` (null denied,
+> consistent with "No null allowed" above). The A50 pre-deploy audit must
+> treat `gender` as allowed, and the deferred production deploy (A51-A53)
+> must ship the F24-amended `firestore.rules`.
 
 **Cross-check of schema doc vs. code that writes today (done for this
 document, not assumed):**
@@ -402,6 +409,7 @@ F22-A06  [U]  firestore.rules contains no get(), exists(), getAfter() or existsA
 
 # --- users/{uid} (profile document) ---
 F22-A07  [I]  An owner create of users/alice with all 13 allowed keys, correctly typed (the bootstrap payload: 11 ProfileState keys + wishlist: [] + seeded: true), succeeds, and get/read-back returns identical values
+              Note 2026-10-22 (F24): statement unchanged and still binding. F24 adds a 14th optional allowed key, `gender` (value must be 'male' or 'female' when present); the 13-key create without it must keep succeeding (F24-A36). Gender allow/deny cases are F24-A36..A38.
 F22-A08  [I]  An owner write to users/alice with an extra key is denied, both as a full create (13 keys + `isAdmin: true`) and as a one-key merge-set `{isAdmin: true}` onto an existing valid document
 F22-A09  [I]  As bob (other uid), get and merge-set of users/alice are both denied, and alice's document is unchanged afterwards
 F22-A10  [I]  Signed out, get and merge-set of users/alice are both denied

@@ -25,4 +25,15 @@ abstract final class OnboardingTokens {
   static const eventChosenInk = Color(0xFF06593E);
   static const choiceDotBorder = Color(0xFFDCE2DE);
   static const choiceDotRing = Color(0xFFD8EFE3);
+
+  // F24 `/gender` (prototype v26 `.v26-copy`, `.v26-gender-card`, `.v26-radio`).
+  static const genderAccent = Color(0xFF087F62);
+  static const genderTitle = Color(0xFF191D1A);
+  static const genderBody = Color(0xFF77847F);
+  static const genderOverline = Color(0xFF717874);
+  static const genderCardBorder = Color(0xFFE0E8E3);
+  static const genderCardBg = Color(0xFFFAFCFB);
+  static const genderCardChosenBg = Color(0xFFF2FBF6);
+  static const genderCardSub = Color(0xFF6E7D74);
+  static const genderRadioBorder = Color(0xFFA0B4A9);
 }

@@ -12,16 +12,23 @@ class ObPrimaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.semanticLabel,
+    this.enabled = true,
   });
 
   final String label;
   final VoidCallback onPressed;
   final String? semanticLabel;
 
+  /// Semantics-only flag (F24 `/gender`): when `false` the node reports
+  /// `enabled: false`, but taps still run [onPressed] so the caller can
+  /// explain why (e.g. a toast). Visuals are unchanged.
+  final bool enabled;
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
+      enabled: enabled,
       label: semanticLabel ?? label,
       excludeSemantics: true,
       onTap: onPressed,

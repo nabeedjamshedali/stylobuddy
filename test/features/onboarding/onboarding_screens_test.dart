@@ -19,7 +19,7 @@ Future<void> _toSlide(WidgetTester tester, int slide) async {
 
 void main() {
   group('welcome', () {
-    testWidgets('F02_A08 renders copy; Get Started opens intro slide 1', (
+    testWidgets('F02_A08 renders copy; Get Started opens /gender, then intro slide 1', (
       tester,
     ) async {
       final router = await pumpApp(tester, '/welcome');
@@ -33,6 +33,11 @@ void main() {
       handle.dispose();
 
       await tapText(tester, 'Get Started');
+      // Amended 2026-10-22 (F24): the required /gender step comes first.
+      expect(pathOf(router), '/gender');
+      await tester.tap(find.byKey(const Key('gender-card-male')));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Continue');
       expect(pathOf(router), '/intro');
       expect(find.text('1/5'), findsOneWidget);
     });
@@ -46,10 +51,10 @@ void main() {
   });
 
   group('intro', () {
-    testWidgets('F02_A09 slide 1 counter, copy and button labels', (
+    testWidgets('F02_A09 male-path slide 1 counter, copy and button labels', (
       tester,
     ) async {
-      await pumpApp(tester, '/intro');
+      await pumpIntro(tester);
       expect(find.text('1/5'), findsOneWidget);
       expect(find.text('Your wardrobe.\nSmarter.'), findsOneWidget);
       expect(
@@ -68,26 +73,30 @@ void main() {
       expect(find.text('Create My Wardrobe'), findsOneWidget);
     });
 
-    testWidgets('F02_A10 slide titles in order and slide 5 description', (
+    testWidgets('F02_A10 male-path slide titles in order and slide 5 description', (
       tester,
     ) async {
-      await pumpApp(tester, '/intro');
+      await pumpIntro(tester);
       for (var i = 0; i < 5; i++) {
-        expect(find.text(introSlides[i].title), findsOneWidget, reason: '$i');
+        expect(
+          find.text(introSlidesFor('male')[i].title),
+          findsOneWidget,
+          reason: '$i',
+        );
         if (i < 4) await _toSlide(tester, 1);
       }
-      expect(introSlides[0].title, 'Your wardrobe.\nSmarter.');
-      expect(introSlides[1].title, 'Scan it once.\nFind it anytime.');
-      expect(introSlides[2].title, 'Let AI style you.');
-      expect(introSlides[3].title, 'Tell us where\nyou’re going.');
-      expect(introSlides[4].title, 'Never wonder\n“What should I wear?”');
+      expect(introSlidesFor('male')[0].title, 'Your wardrobe.\nSmarter.');
+      expect(introSlidesFor('male')[1].title, 'Scan it once.\nFind it anytime.');
+      expect(introSlidesFor('male')[2].title, 'Let AI style you.');
+      expect(introSlidesFor('male')[3].title, 'Tell us where\nyou’re going.');
+      expect(introSlidesFor('male')[4].title, 'Never wonder\n“What should I wear?”');
       expect(find.text('Smart outfits for every you.'), findsOneWidget);
     });
 
-    testWidgets('F02_A11 five dots, one active; Skip and Back targets', (
+    testWidgets('F02_A11 five dots, one active; Back targets (slide 1 -> /gender)', (
       tester,
     ) async {
-      final router = await pumpApp(tester, '/intro');
+      final router = await pumpIntro(tester);
       for (var i = 0; i < 5; i++) {
         expect(find.byKey(const Key('intro-dot-active')), findsOneWidget);
         expect(find.byKey(const Key('intro-dot')), findsNWidgets(4));
@@ -103,13 +112,14 @@ void main() {
       expect(find.text('1/5'), findsOneWidget);
 
       await tapText(tester, 'Back');
-      expect(pathOf(router), '/welcome');
+      // Amended 2026-10-22 (F24): Back on slide 1 returns to /gender.
+      expect(pathOf(router), '/gender');
     });
 
     testWidgets('F02_A11 Skip goes to /personalize from any slide', (
       tester,
     ) async {
-      final router = await pumpApp(tester, '/intro');
+      final router = await pumpIntro(tester);
       await _toSlide(tester, 2);
       await tapText(tester, 'Skip');
       expect(pathOf(router), '/personalize');
@@ -118,7 +128,7 @@ void main() {
     testWidgets('F02_A01 last slide button finishes to /personalize', (
       tester,
     ) async {
-      final router = await pumpApp(tester, '/intro');
+      final router = await pumpIntro(tester);
       await _toSlide(tester, 4);
       await tapText(tester, 'Create My Wardrobe');
       expect(pathOf(router), '/personalize');
@@ -127,7 +137,7 @@ void main() {
     testWidgets('F02_A12 slide 4 lists occasions with glyphs and toggles', (
       tester,
     ) async {
-      await pumpApp(tester, '/intro');
+      await pumpIntro(tester);
       await _toSlide(tester, 3);
       const expected = [
         ('▣', 'Office'),
@@ -152,7 +162,7 @@ void main() {
     });
 
     testWidgets('F02_A26 intro and welcome show no bottom nav', (tester) async {
-      await pumpApp(tester, '/intro');
+      await pumpIntro(tester);
       for (final label in navLabels) {
         expect(find.text(label), findsNothing);
       }
@@ -214,7 +224,7 @@ void main() {
     testWidgets('F02_A14 the back button on Personalize returns to /intro', (
       tester,
     ) async {
-      final router = await pumpApp(tester, '/personalize');
+      final router = await pumpPersonalize(tester);
       await tapText(tester, '‹');
       expect(pathOf(router), '/intro');
     });
@@ -231,7 +241,7 @@ void main() {
     testWidgets('F02_A11 system back on intro steps back one slide', (
       tester,
     ) async {
-      final router = await pumpApp(tester, '/intro');
+      final router = await pumpIntro(tester);
       await _toSlide(tester, 2);
       expect(find.text('3/5'), findsOneWidget);
       await tester.binding.handlePopRoute();
@@ -242,13 +252,14 @@ void main() {
       expect(find.text('1/5'), findsOneWidget);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
-      expect(pathOf(router), '/welcome');
+      // Amended 2026-10-22 (F24): system back on slide 1 returns to /gender.
+      expect(pathOf(router), '/gender');
     });
 
     testWidgets('F02_A14 system back on personalize returns to /intro', (
       tester,
     ) async {
-      final router = await pumpApp(tester, '/personalize');
+      final router = await pumpPersonalize(tester);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(pathOf(router), '/intro');

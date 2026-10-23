@@ -18,7 +18,7 @@ class WelcomeView extends StatelessWidget {
 
   void _start(BuildContext context) {
     context.read<OnboardingCubit>().start();
-    context.go(AppRoutes.intro);
+    context.go(AppRoutes.gender);
   }
 
   @override

@@ -26,6 +26,7 @@ abstract final class AppRoutes {
   static const matchingResults = '/matching-results';
   static const matchingDetail = '/matching-detail';
   static const welcome = '/welcome';
+  static const gender = '/gender';
   static const intro = '/intro';
   static const personalize = '/personalize';
   static const packing = '/packing';
@@ -79,6 +80,7 @@ abstract final class AppRoutes {
   /// Routes rendered without the bottom navigation.
   static const noNavRoutes = {
     welcome,
+    gender,
     intro,
     personalize,
     auth,

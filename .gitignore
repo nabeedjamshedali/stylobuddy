@@ -47,6 +47,7 @@ app.*.map.json
 
 # Reference copy of the HTML prototype (source for the Flutter port, not app code)
 /stylobuddy-v23-mobile-icon-final/
+/stylobuddy-prototype/
 
 # Supabase CLI local state (project link cache, not app code)
 /supabase/.temp/

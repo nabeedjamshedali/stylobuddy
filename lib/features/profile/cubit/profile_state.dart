@@ -15,6 +15,7 @@ class ProfileState {
     this.climate = 'Mild',
     this.plan = 'Free',
     this.billingCycle = 'yearly',
+    this.gender,
   });
 
   final String name;
@@ -28,6 +29,11 @@ class ProfileState {
   final String climate;
   final String plan;
   final String billingCycle;
+
+  /// F24: `'male'` / `'female'` chosen on onboarding `/gender`, or `null`
+  /// (never chosen: guest, skipped intro, or pre-F24 user). Written only by
+  /// the D5 bootstrap seed; no setter.
+  final String? gender;
 
   /// Prototype `S.profileStyle`: `Minimal • Smart casual`.
   String get styleSummary => styles.join(' • ');
@@ -44,6 +50,7 @@ class ProfileState {
     String? climate,
     String? plan,
     String? billingCycle,
+    String? gender,
   }) => ProfileState(
     name: name ?? this.name,
     email: email ?? this.email,
@@ -56,5 +63,6 @@ class ProfileState {
     climate: climate ?? this.climate,
     plan: plan ?? this.plan,
     billingCycle: billingCycle ?? this.billingCycle,
+    gender: gender ?? this.gender,
   );
 }

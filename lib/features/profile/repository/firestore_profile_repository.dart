@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../shared/backend/firestore_service.dart';
+import '../../../shared/models/genders.dart';
 import '../cubit/profile_state.dart';
 import 'profile_repository.dart';
 
@@ -47,6 +48,13 @@ class FirestoreProfileRepository implements ProfileRepository {
     return data[key] as String;
   }
 
+  static String? _nullableStringField(Map<String, dynamic> data, String key) {
+    // F24-A28: missing key or explicit null -> null ("never chosen"); any
+    // present string, including '', is read back verbatim.
+    if (!data.containsKey(key) || data[key] == null) return null;
+    return data[key] as String;
+  }
+
   static bool _boolField(
     Map<String, dynamic> data,
     String key,
@@ -89,9 +97,11 @@ class FirestoreProfileRepository implements ProfileRepository {
           'billingCycle',
           _defaults.billingCycle,
         ),
+        gender: _nullableStringField(data, 'gender'),
       );
 
-  /// The full 11-field write payload for [state] — used both by individual
+  /// The full 11-field write payload for [state] (plus `gender` only when
+  /// [ProfileState.gender] is non-null, F24) — used both by individual
   /// setters (merged with just the changed field(s) at the call site) and
   /// by [bootstrapIfNeeded]'s seed write, so a freshly-seeded document
   /// always carries exactly these keys (plus `wishlist`/`seeded`, F18-A02),
@@ -108,6 +118,7 @@ class FirestoreProfileRepository implements ProfileRepository {
     'climate': state.climate,
     'plan': state.plan,
     'billingCycle': state.billingCycle,
+    if (state.gender != null) 'gender': state.gender,
   };
 
   @override
@@ -195,8 +206,15 @@ class FirestoreProfileRepository implements ProfileRepository {
   /// (F18-A07: "didn't choose" != "chose to clear everything"). A second
   /// call for an already-seeded uid performs no further seed write at all
   /// (F14's guard, reaffirmed not reimplemented).
+  ///
+  /// [gender] (F24) is the onboarding choice, already consumed-and-cleared
+  /// by the caller. It is written only when it is one of [Genders.values];
+  /// anything else (including `''`) is dropped and the key omitted, because
+  /// `firestore.rules` would deny the whole bootstrap transaction for it.
+  /// The absent-keys-only rule above applies to it unchanged.
   Future<void> bootstrapIfNeeded({
     Set<String> pendingOccasions = const {},
+    String? gender,
     String? name,
     String? email,
     Future<void> Function(
@@ -212,6 +230,7 @@ class FirestoreProfileRepository implements ProfileRepository {
       occasions: occasions,
       name: (name != null && name.isNotEmpty) ? name : _defaults.name,
       email: (email != null && email.isNotEmpty) ? email : _defaults.email,
+      gender: Genders.values.contains(gender) ? gender : null,
     );
     return _service.runBootstrapIfNeeded(
       _uid,

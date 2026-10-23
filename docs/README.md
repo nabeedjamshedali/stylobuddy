@@ -110,6 +110,15 @@ out the full-suite regression check, the debug build, and these status
 updates. The LLM/AI provider choice behind `ai-stylist` is a standing,
 deliberately deferred decision — not part of this plan's scope to make.
 
+### Milestone 3 — Product iteration
+
+Product changes made on top of the wired backend. Each one is grounded in
+an approved design doc under `docs/superpowers/specs/`.
+
+| # | Document | Depends on | Assertions | Status |
+|---|---|---|---|---|
+| F24 | [Gender-segregated onboarding + Profile.gender](features/F24-gender-onboarding.md) | F02, F18, F22 | 40 | DONE (gates 1-3, 38/40; gate 4 — A39 device screenshots, A40 live Firestore — pending, same deferral as every Milestone-2 feature); scrutiny-validated and contract-audited 2026-10-22, both signed off |
+
 ---
 
 ## Document status

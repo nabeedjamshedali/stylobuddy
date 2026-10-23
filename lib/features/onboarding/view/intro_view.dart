@@ -16,7 +16,10 @@ import '../widgets/ob_primary_button.dart';
 import '../widgets/ob_text_button.dart';
 import '../widgets/occasion_list.dart';
 
-/// Prototype `pages.intro`: five slides driven by [OnboardingCubit.state].
+/// Prototype `pages.intro`: five slides driven by [OnboardingCubit.state],
+/// resolved for the gender chosen on `/gender` (F24). With no gender (a
+/// fresh shell landing on `/intro`) it renders a blank page and redirects to
+/// `/gender` once; it never renders a slide without a gender.
 class IntroView extends StatelessWidget {
   const IntroView({super.key});
 
@@ -36,11 +39,13 @@ class IntroView extends StatelessWidget {
         context.go(
           exit == OnboardingExit.finished
               ? AppRoutes.personalize
-              : AppRoutes.welcome,
+              : AppRoutes.gender,
         );
       },
       builder: (context, state) {
-        final slide = introSlides[state.slide];
+        final gender = state.gender;
+        if (gender == null) return const _RedirectToGender();
+        final slide = introSlidesFor(gender)[state.slide];
         return Scaffold(
           backgroundColor: AppColors.white,
           body: SafeArea(
@@ -86,6 +91,28 @@ class IntroView extends StatelessWidget {
       },
     );
   }
+}
+
+/// F24 null-gender guard: blank white page, one post-frame `go('/gender')`.
+class _RedirectToGender extends StatefulWidget {
+  const _RedirectToGender();
+
+  @override
+  State<_RedirectToGender> createState() => _RedirectToGenderState();
+}
+
+class _RedirectToGenderState extends State<_RedirectToGender> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.go(AppRoutes.gender);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(backgroundColor: AppColors.white);
 }
 
 class _TopRow extends StatelessWidget {

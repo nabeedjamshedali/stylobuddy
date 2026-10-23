@@ -24,7 +24,9 @@ class OnboardingBackScope extends StatelessWidget {
       canPop: location == AppRoutes.welcome,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        if (location == AppRoutes.intro) {
+        if (location == AppRoutes.gender) {
+          context.go(AppRoutes.welcome);
+        } else if (location == AppRoutes.intro) {
           context.read<OnboardingCubit>().back();
         } else if (location == AppRoutes.personalize) {
           context.go(AppRoutes.intro);

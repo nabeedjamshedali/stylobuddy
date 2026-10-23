@@ -104,3 +104,9 @@ Updated as each document completes. This is the project's single progress view, 
 | F11 | 17 | — |
 | F12 | 21 | — |
 | F13 | 28 | — |
+
+### Milestone 3
+
+| Doc | Assertions | Status |
+|-----|-----------|--------|
+| F24 | 40 | ~ (A39/A40 live run pending) |

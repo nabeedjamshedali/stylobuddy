@@ -45,6 +45,14 @@ ProfileState                                   # defaults mirror prototype app.j
     styles = ['Minimal','Smart casual'], occasions = ['Everyday','Office']
     dailyNotifications = true, plannedNotifications = true, productNotifications = false
     weatherConsent = true, climate = 'Mild', plan = 'Free', billingCycle = 'yearly'
+    gender: String | None = None               # F24: 'male' | 'female'; null = never chosen (guest,
+                                                 # skipped intro, or pre-F24 user). Written only by the
+                                                 # D5 bootstrap seed from the onboarding gender choice.
+                                                 # ProfileRepository exposes no setter for it and
+                                                 # FirestoreProfileRepository's bootstrap never overwrites
+                                                 # an already-present value (F18's absent-keys-only rule) —
+                                                 # but this is app-level behaviour, not a rules guarantee:
+                                                 # firestore.rules permits an owner to merge-set it directly.
     styleSummary (getter) = styles.join(' • ')
     PreferenceField { styles, occasions }
     # NOTE: the Firestore `users/{uid}` document backing this state (schema doc §1) also carries
@@ -85,6 +93,7 @@ Seed (`SeedData`): 23 items (`wears = index % 5`), 2 outfits (`Everyday Essentia
 | `ClothingItem.season` | n/a (default 'All season') | — |
 | `ClothingItem.imageUrl` | missing field or explicit `null` -> falls back to `sourceId`/`imageId` bundled art (F15-A15) | `''` (empty string) -> also falls back, never treated as a usable URL (F15-A16); only a non-empty string counts as "has a photo" |
 | `ProfileState.name` | Home greets `Hi, there`; avatar initial `A` | non-empty by validation (blank rejected) |
+| `ProfileState.gender` | missing field or explicit `null` -> "never chosen" (pre-F24 user, or a guest whose choice was never persisted); no app write path ever produces `''`, but if the document holds `''` anyway (legacy data or a direct write outside the app) it reads back verbatim as `''`, not coerced to `null` (F24-A28) | n/a — see Missing column; the onboarding-side guard that sends `/intro` to `/gender` until a choice is made reads `OnboardingState.gender` (feature-local, not this field), not `ProfileState.gender` |
 | `Outfit` referenced by id | "This outfit is no longer saved." / "Original outfit was removed" | zero outfits -> "Your looks start here" |
 | Trip destination | falls back to trip type in subtitles | — |
 | Trip dates | `Choose dates` | — |

@@ -25,6 +25,7 @@ class PendingOnboardingSelections {
 
   static Set<String> _chosenOccasions = const {};
   static Set<String> _chosenChips = const {};
+  static String? _gender;
 
   /// Called by [OnboardingCubit.toggleOccasion] with the full, current
   /// `chosenOccasions` set on every toggle.
@@ -38,13 +39,32 @@ class PendingOnboardingSelections {
     _chosenChips = value;
   }
 
+  /// Called by [OnboardingCubit.setGender] with the chosen gender (F24).
+  /// A separate slot: [consume] never touches it.
+  static void setGender(String value) {
+    _gender = value;
+  }
+
+  /// Returns the pending gender (or `null` if none was chosen), then clears
+  /// the gender slot only (F24). `lib/app.dart` calls it exactly once next
+  /// to [consume] when constructing the signed-in `ProfileCubit`, so a later
+  /// sign-up in the same process never inherits it.
+  static String? consumeGender() {
+    final value = _gender;
+    _gender = null;
+    return value;
+  }
+
   /// Returns the union of `chosenOccasions`/`chosenChips` (duplicates
   /// collapsed, F18 doc §13's accepted union ruling) accumulated so far,
   /// then clears the holder. Safe to call even when nothing was ever
   /// toggled (returns an empty set).
+  ///
+  /// Leaves the F24 gender slot untouched — see [consumeGender].
   static Set<String> consume() {
     final union = {..._chosenOccasions, ..._chosenChips};
-    clear();
+    _chosenOccasions = const {};
+    _chosenChips = const {};
     return union;
   }
 
@@ -54,6 +74,7 @@ class PendingOnboardingSelections {
   static void clear() {
     _chosenOccasions = const {};
     _chosenChips = const {};
+    _gender = null;
   }
 
   @visibleForTesting
@@ -61,4 +82,7 @@ class PendingOnboardingSelections {
 
   @visibleForTesting
   static Set<String> get chosenChipsForTest => _chosenChips;
+
+  @visibleForTesting
+  static String? get genderForTest => _gender;
 }

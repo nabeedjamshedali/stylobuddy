@@ -9,8 +9,8 @@
 | | |
 |---|---|
 | Current document | — |
-| Last completed | — |
-| Next up | Foundation 00 — Product specification |
+| Last completed | F24 — Gender-segregated onboarding (gates 1-3, 38/40; A39/A40 [L] deferred), 2026-10-22 |
+| Next up | No further Milestone 3 document registered; open: independent validator pass on F24 (ADR-004), deferred live runs (F18-F24 gate 4) |
 | Blockers | none |
 
 ## Standing constraints

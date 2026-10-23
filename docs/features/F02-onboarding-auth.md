@@ -61,20 +61,26 @@ Invalid email/blank required fields: submit blocked, no navigation, no toast. Pa
 ## 11. Validation assertions
 
 ```
-F02-A01  [U]  OnboardingCubit starts at slide 0; next() increments; back() decrements; next() from slide 4 emits finished (navigates to /personalize); back() on slide 0 signals return to /welcome
+F02-A01  [U]  OnboardingCubit starts at slide 0; next() increments; back() decrements; next() from slide 4 emits finished (navigates to /personalize); back() on slide 0 signals return to /gender (OnboardingExit.backToGender)
+              Amended 2026-10-22 (F24): the gender-choice step now sits between /welcome and /intro, so back from slide 1 returns to it (prototype app.js:330). Was: "back() on slide 0 signals return to /welcome".
 F02-A02  [U]  toggleOccasion('Office') adds it to chosenOccasions, a second call removes it
 F02-A03  [U]  submitSignup with password 'short' sets error 'Use at least 8 characters for your password.' and returns a failure result
 F02-A04  [U]  submitSignup with password 'longenough' and confirm 'different' sets error 'Passwords do not match. Please try again.'; the 8-character check runs first when both apply
 F02-A05  [U]  submitLogin has no length rule: password 'abc' with a valid email succeeds
 F02-A06  [U]  Email validation rejects '', 'abc', 'a@b' and accepts 'you@example.com'; signup full name of 1 character is rejected, 2 accepted; blank (empty) password is rejected
 F02-A07  [U]  A successful submitForgot or submitSignup stores the entered email in AuthCubit.email; submitLogin stores it too
-F02-A08  [U]  Welcome renders 'Your AI-Powered' and 'Personal Stylist', the line 'Organize your wardrobe,', 'Get Started →' and 'Skip introduction'; 'Get Started →' opens /intro on slide 1; 'Skip introduction' opens /auth
-F02-A09  [U]  Intro slide 1 shows counter '1/5', title 'Your wardrobe.' / 'Smarter.', the description 'Organize every outfit and get AI-powered styling recommendations in seconds.' and button 'Get Started'; slides 2-4 use 'Continue'; slide 5 uses 'Create My Wardrobe'
-F02-A10  [U]  Intro slide titles in order: 'Your wardrobe.' 'Smarter.' / 'Scan it once.' 'Find it anytime.' / 'Let AI style you.' / 'Tell us where' 'you’re going.' / 'Never wonder' '“What should I wear?”' with desc 'Smart outfits for every you.' on slide 5
-F02-A11  [U]  Intro always renders 5 dots with exactly one active matching the slide; 'Skip' navigates to /personalize at any slide; 'Back' on slide 2 returns to slide 1; 'Back' on slide 1 goes to /welcome
+F02-A08  [U]  Welcome renders 'Your AI-Powered' and 'Personal Stylist', the line 'Organize your wardrobe,', 'Get Started →' and 'Skip introduction'; 'Get Started →' opens /gender, where choosing a gender and tapping 'Continue' opens /intro on slide 1; 'Skip introduction' opens /auth
+              Amended 2026-10-22 (F24): 'Get Started →' now opens the new required /gender step first. Was: "'Get Started →' opens /intro on slide 1".
+F02-A09  [U]  On the male path (gender 'male'), intro slide 1 shows counter '1/5', title 'Your wardrobe.' / 'Smarter.', the description 'Organize every outfit and get AI-powered styling recommendations in seconds.' and button 'Get Started'; slides 2-4 use 'Continue'; slide 5 uses 'Create My Wardrobe'
+              Amended 2026-10-22 (F24): scoped to the male path; female-path copy is F24-A15. Counter and button labels hold for both genders.
+F02-A10  [U]  On the male path (gender 'male'), intro slide titles in order: 'Your wardrobe.' 'Smarter.' / 'Scan it once.' 'Find it anytime.' / 'Let AI style you.' / 'Tell us where' 'you’re going.' / 'Never wonder' '“What should I wear?”' with desc 'Smart outfits for every you.' on slide 5
+              Amended 2026-10-22 (F24): scoped to the male path; female-path titles are F24-A15. The male strings themselves are unchanged.
+F02-A11  [U]  Intro always renders 5 dots with exactly one active matching the slide; 'Skip' navigates to /personalize at any slide; 'Back' on slide 2 returns to slide 1; 'Back' on slide 1 goes to /gender
+              Amended 2026-10-22 (F24): Back from slide 1 now returns to the new /gender step (prototype app.js:330). Was: "'Back' on slide 1 goes to /welcome". Test harness reaches /intro via /gender -> Male -> Continue (a fresh /intro with no gender redirects to /gender, F24-A20).
 F02-A12  [U]  Slide 4 lists occasions with glyphs ▣ Office, ♧ Wedding, ♥ Date Night, ☼ Casual Day Out, ✧ Party, ♙ Interview, ⌂ Vacation; tapping one marks it chosen and tapping again clears it
 F02-A13  [U]  Personalize renders head 'Your Style, Your Way', 'What feels most like you?', 'Choose a few favorites. You can change them later.', five options ('Minimal & clean', 'Smart casual' preselected, 'Elegant & polished', 'Relaxed & comfy', 'Colorful & bold'); tapping an option toasts '<option> selected'
-F02-A14  [U]  Personalize shows chips Everyday Office Wedding Party Travel that toggle independently; 'Continue →' opens /auth; the ‹ button on Personalize returns to /intro
+F02-A14  [U]  Personalize shows chips Everyday Office Wedding Party Travel that toggle independently; 'Continue →' opens /auth; the ‹ button on Personalize returns to /intro, provided a gender was already chosen earlier in the same onboarding session
+              Amended 2026-10-22 (F24): the ‹/back-to-/intro behaviour now depends on OnboardingState.gender already being set. A cold pump straight to /personalize (no prior /gender step in this process) that then navigates back lands on /intro with gender still null, and /intro's own null-gender guard (F24-A20) immediately redirects to /gender instead of rendering slide 5. The chips/Continue-to-/auth half of this assertion is gender-independent and unaffected. See F24-A20's test for the guard itself.
 F02-A15  [U]  Auth renders 'Create your wardrobe.' and the three buttons; Google toasts 'Google authentication UI preview', Apple toasts 'Apple authentication UI preview', 'Continue with Email' opens /login, 'Skip for now' opens /home
 F02-A16  [U]  Login renders overline 'STYLE STARTS HERE', 'Welcome back.', 'Sign in to continue building your personal wardrobe.', fields 'Email address' 'Password', 'Forgot password?', 'Sign in →' and 'New to StyloBuddy? Create an account'
 F02-A17  [U]  Login with valid email and non-empty password navigates to /home, toasts 'Signed in to demo account' and the bottom nav is visible
@@ -87,8 +93,10 @@ F02-A23  [U]  Reset-sent renders 'Check your inbox.', 'Reset link preview', the 
 F02-A24  [U]  Verify-email renders 'One more step.', 'Verification preview', 'In production, we’ll send a verification email to <email>. This is an interactive design preview only.'; 'Continue to demo →' opens /home with toast 'Verification simulated'; 'Resend verification email' toasts 'No real email is sent in this prototype' and stays
 F02-A25  [U]  Header back targets: login -> /auth, signup -> /auth, forgot -> /login, reset-sent -> /forgot, verify-email -> /signup (pop when history exists)
 F02-A26  [U]  None of the 9 routes shows the bottom navigation
+              Amended 2026-10-22 (F24): a 10th route, /gender, was added between /welcome and /intro; it also shows no bottom navigation (F24-A08). The original 9 are unaffected.
 F02-A28  [U]  After a successful signup the ProfileState name and email are unchanged ('Alex Morgan', 'alex@example.com')
-F02-A27  [L]  In the running web build at 390x844, /#/welcome matches the prototype screenshot; driving welcome -> Get Started -> 5 slides -> personalize -> auth -> Skip for now reaches /home with nav; demo signup with 'short' shows the inline error
+F02-A27  [L]  In the running web build at 390x844, /#/welcome matches the prototype screenshot; driving welcome -> Get Started -> Male -> Continue -> 5 slides -> personalize -> auth -> Skip for now reaches /home with nav; demo signup with 'short' shows the inline error
+              Amended 2026-10-22 (F24): the walk now includes the /gender step. Was: "welcome -> Get Started -> 5 slides -> ...". The prototype reference for this step is the v26 gender page (app.js:307-311).
 ```
 
 ## 12. Edge cases

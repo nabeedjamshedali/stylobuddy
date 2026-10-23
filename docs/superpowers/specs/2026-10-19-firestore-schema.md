@@ -37,6 +37,7 @@ not stored here (D1 — bundled app config, not user data).
 | `climate` | string | |
 | `plan` | string | |
 | `billingCycle` | string | |
+| `gender` | string? | **new** (F24) — `'male'` or `'female'`; missing/null = never chosen. Written only by the D5 bootstrap seed from the onboarding gender choice (`PendingOnboardingSelections.consumeGender()`); `ProfileRepository` has no setter for it and the bootstrap never overwrites an already-present value (absent-keys-only rule). `firestore.rules` does not itself prevent a direct merge-set of this field by its owner — the no-overwrite guarantee is app-level, not rules-enforced |
 | `wishlist` | array\<string\> | **new** — moved here from a would-be `shopping` subcollection; it's a handful of `ShopEntry.id` strings, an array field is simpler than a subcollection for this size (D-call, see plan Task 6) |
 | `seeded` | bool | **new**, infra-only, not part of `ProfileState` — set `true` by the D5 bootstrap, read once at sign-in to decide whether to seed |
 

@@ -28,6 +28,7 @@ service cloud.firestore {
              'name', 'email', 'styles', 'occasions', 'dailyNotifications',
              'plannedNotifications', 'productNotifications', 'weatherConsent',
              'climate', 'plan', 'billingCycle', 'wishlist', 'seeded',
+             'gender',
            ])
         && (!('name' in request.resource.data) || request.resource.data.name is string)
         && (!('email' in request.resource.data) || request.resource.data.email is string)
@@ -37,6 +38,8 @@ service cloud.firestore {
         && (!('plannedNotifications' in request.resource.data) || request.resource.data.plannedNotifications is bool)
         && (!('productNotifications' in request.resource.data) || request.resource.data.productNotifications is bool)
         && (!('weatherConsent' in request.resource.data) || request.resource.data.weatherConsent is bool)
+        // F24: optional onboarding choice; only the two Genders values.
+        && (!('gender' in request.resource.data) || request.resource.data.gender in ['male', 'female'])
         && (!('climate' in request.resource.data) || request.resource.data.climate is string)
         && (!('plan' in request.resource.data) || request.resource.data.plan is string)
         && (!('billingCycle' in request.resource.data) || request.resource.data.billingCycle is string)
