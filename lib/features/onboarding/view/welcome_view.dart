@@ -38,13 +38,12 @@ class WelcomeView extends StatelessWidget {
               const Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(top: 14),
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: ObPhoto(
-                      file: 'onboard-00-rack.png',
-                      alignment: Alignment.bottomCenter,
-                    ),
-                  ),
+                  // SizedBox.expand gives ObPhoto the Expanded's full area to
+                  // fill (BoxFit.contain then scales the image up to that
+                  // box, centered) instead of Align's shrink-to-intrinsic-
+                  // size behavior, which left most of this space empty above
+                  // a small, bottom-pinned image.
+                  child: SizedBox.expand(child: ObPhoto(file: 'onboard-00-rack.png')),
                 ),
               ),
               Padding(
