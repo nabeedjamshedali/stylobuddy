@@ -50,12 +50,20 @@ explicit user decision, 1 (this integration/docs pass) in progress.
 - [ ] RevenueCat (premium/subscription screens are UI previews only —
       "Free" plan is hardcoded, no entitlement checks) — not in scope of
       the backend-wiring plan, still open
-- [ ] Firebase Analytics — not in scope of the backend-wiring plan, still
-      open
+- [x] Firebase Analytics — wired 2026-10-29 (F25, gates 1-3): typed
+      `AnalyticsService`, a screen_view per go_router location, funnel
+      events (onboarding start/complete/skip, login, guest_start,
+      outfit_generated, wardrobe_items_added, outfit_saved, paywall_view);
+      no gender/name/email/ids ever logged. DebugView check (F25-A44) pending
 - [ ] Firebase Crashlytics — not in scope of the backend-wiring plan,
       still open
-- [ ] Firebase Remote Config (feature flags / forced update) — not in
-      scope of the backend-wiring plan, still open
+- [x] Firebase Remote Config (feature flags / forced update) — wired
+      2026-10-29 (F25, gates 1-3): `min_supported_version` (blocking
+      Update required), `latest_version` (nudge), `maintenance_message`
+      (banner), `ai_stylist_enabled` / `premium_enabled` (default false, no
+      consumer yet). Template + runbook ready
+      (`scripts/remoteconfig.template.json`, `docs/runbooks/remote-config.md`)
+      — **NOT published yet**; device forced-update check (F25-A45/A46) pending
 - [ ] **AI / LLM provider — explicitly PENDING, deferred decision.** The
       `ai-stylist` Edge Function is scaffolded as a stub (F23): real
       token verification, a swappable `getLlmAdapter()` seam that returns

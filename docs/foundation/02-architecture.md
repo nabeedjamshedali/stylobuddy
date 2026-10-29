@@ -31,6 +31,14 @@ Dependencies point **one way only**.
 
 `lib/core` (theme, assets, router) is usable by all layers. `lib/shared/backend/` (`auth_session.dart`, `firestore_service.dart`) is the shared Firebase/Firestore plumbing every feature `repository/` file and `lib/app.dart` may call — never a `view`/`widgets` file (see boundary table below).
 
+*(2026-10-29, F25)* `lib/shared/backend/analytics_service.dart` and `remote_config_service.dart`
+are SDK-free abstractions: Cubits may take an `AnalyticsService` (default no-op) and the
+`app_config` feature Cubit takes a `RemoteConfigService`. Their Firebase adapters
+(`firebase_analytics_sink.dart`, `firebase_remote_config_service.dart`) and the platform
+helpers (`app_platform.dart`: package_info_plus, url_launcher) are imported only by
+`lib/main.dart`/`lib/app.dart`. Views and widgets never log analytics or read Remote Config
+directly; screen views are logged by `ScreenViewTracker` listening to the router.
+
 ## 3. Request lifecycle
 
 "Mark as Worn Today" on `/saved-detail?id=1`: the view calls `OutfitsCubit.logWear(1)` -> the Cubit appends a `WearEvent`, increments `Outfit.worn`, calls `WardrobeCubit.adjustWears(items, 1)` -> state emits -> the view rebuilds with "You have worn this look 1 time." and the view shows toast "Outfit wear recorded".

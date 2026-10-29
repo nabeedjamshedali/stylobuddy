@@ -28,9 +28,49 @@ Firebase service-account JSON and Supabase access token are supplied by the owne
 
 *(2026-10-20, Task 10/F23)* The `ai-stylist` Edge Function's `LLM_PROVIDER` selector and any future chosen provider's API key are set only via `supabase secrets set --project-ref dbaeaqyoyilxcuwplvuw`, the same mechanism and discipline as the existing service-role key — never committed, never logged. Today `LLM_PROVIDER` is unset in production and the function always answers `501` (`docs/features/F23-ai-stylist-stub.md`).
 
+*(2026-10-30, F26)* `ai-stylist` gains a real provider, Google Gemini
+(`docs/features/F26-real-ai-stylist.md`).
+
+- **Secrets.** These are set only via `supabase secrets set --project-ref
+  dbaeaqyoyilxcuwplvuw` and are never committed, logged, echoed in a
+  response, or put in Remote Config:
+  - `LLM_PROVIDER=gemini`;
+  - `GEMINI_API_KEY`, sent only in the `x-goog-api-key` request header and
+    never in a URL;
+  - `GEMINI_MODEL`, optional, default `gemini-2.5-flash`. It is not secret,
+    but it is managed the same way;
+  - `AI_DAILY_LIMIT`, optional, default `30`. `0` turns AI off for every
+    user.
+- **Service-role key.** The platform-injected `SUPABASE_URL` and
+  `SUPABASE_SERVICE_ROLE_KEY` are read only by `_shared/usage-limit.ts`, to
+  call `ai_usage_try_increment`.
+- **`ai_usage` table.** Supabase Postgres `public.ai_usage` stores only the
+  SHA-256 hex of the Firebase uid (never the raw uid), the UTC day and a
+  count. RLS is enabled with no policies, and table privileges and execute on
+  the function are revoked from `anon`/`authenticated`.
+- **Third-party processing.** For signed-in users, only while Remote Config
+  `ai_stylist_enabled` is true, the app sends Gemini:
+  - the chosen occasion, style direction and weather;
+  - the id, name, category, color, occasion and season of up to 120 of the
+    user's wardrobe items.
+
+  Nothing else is sent: no uid, email, display name, gender, photos or image
+  URLs. Item names are user-typed free text. On the Gemini API **free tier**
+  Google may use submitted content to improve its products. The privacy
+  policy must therefore disclose this processing **before** `ai_stylist_enabled`
+  is turned on in production (F26-A87).
+
 ## 5. Audit
 
 Crashlytics is wired (`lib/main.dart`: `FlutterError.onError`/`PlatformDispatcher.instance.onError` both record to `FirebaseCrashlytics.instance`). Analytics events without personal content are still Later (not wired by this plan).
+
+*(2026-10-29, F25)* Firebase Analytics is now wired through `AnalyticsService`
+(`lib/shared/backend/analytics_service.dart`), whose typed methods are the only way to log.
+Binding privacy rules: no gender, name, email, uid, free text, wardrobe item names/ids,
+occasions or query parameters are ever sent; parameter values are fixed enum strings or
+integers; `setUserId`/`setUserProperty`/`setDefaultEventParameters` are never called (F25-A04,
+A09). Remote Config values are public to every client, so no secret may ever be stored in a
+Remote Config parameter.
 
 ## 6. Threats considered
 

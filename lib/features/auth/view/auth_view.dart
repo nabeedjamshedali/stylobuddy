@@ -132,7 +132,10 @@ class _Actions extends StatelessWidget {
           const OrDivider(),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => context.go(AppRoutes.home),
+            onTap: () {
+              context.read<AuthCubit>().continueAsGuest();
+              context.go(AppRoutes.home);
+            },
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: Text(

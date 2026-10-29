@@ -110,3 +110,5 @@ Updated as each document completes. This is the project's single progress view, 
 | Doc | Assertions | Status |
 |-----|-----------|--------|
 | F24 | 40 | ~ (A39/A40 live run pending) |
+| F25 | 46 | ~ (gates 1-3, 43/46; A44-A46 live run pending) |
+| F26 | 87 | — (not started; A80-A87 live run waits for the user's Gemini API key) |

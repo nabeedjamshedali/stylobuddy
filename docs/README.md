@@ -118,7 +118,8 @@ an approved design doc under `docs/superpowers/specs/`.
 | # | Document | Depends on | Assertions | Status |
 |---|---|---|---|---|
 | F24 | [Gender-segregated onboarding + Profile.gender](features/F24-gender-onboarding.md) | F02, F18, F22 | 40 | DONE (gates 1-3, 38/40; gate 4 — A39 device screenshots, A40 live Firestore — pending, same deferral as every Milestone-2 feature); scrutiny-validated and contract-audited 2026-10-22, both signed off |
-| F25 | [Firebase Analytics + Remote Config (flags, forced update)](features/F25-analytics-remote-config.md) | F02, F03, F06, F07, F13, F14, F15, F16, F24 | 46 | IN PROGRESS |
+| F25 | [Firebase Analytics + Remote Config (flags, forced update)](features/F25-analytics-remote-config.md) | F02, F03, F06, F07, F13, F14, F15, F16, F24 | 46 | DONE (gates 1-3, 43/46; gate 4 — A44 Analytics DebugView, A45 device forced update, A46 offline first paint — pending); Remote Config template written, NOT published; independent scrutiny and contract audit done 2026-10-30, fixes applied |
+| F26 | [Real AI stylist (Gemini Flash behind `ai-stylist`)](features/F26-real-ai-stylist.md) | F03, F23, F25, F14 | 87 | NOT STARTED (gate 4 Phase B — A80-A87 `[L]` — waits for the user's Gemini API key) |
 
 ---
 

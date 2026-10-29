@@ -21,6 +21,11 @@ class WelcomeView extends StatelessWidget {
     context.go(AppRoutes.gender);
   }
 
+  void _skip(BuildContext context) {
+    context.read<OnboardingCubit>().skipFromWelcome();
+    context.go(AppRoutes.auth);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -61,7 +66,7 @@ class WelcomeView extends StatelessWidget {
                         label: 'Skip introduction',
                         size: 11,
                         color: OnboardingTokens.plainButton,
-                        onTap: () => context.go(AppRoutes.auth),
+                        onTap: () => _skip(context),
                       ),
                     ),
                   ],

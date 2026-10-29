@@ -62,11 +62,31 @@ ProfileState                                   # defaults mirror prototype app.j
 
 StylistState (F03)   occasion = 'Everyday', results: List<StyleResult>, activeIndex, selected, locked: List<String>,
                      accessories = true, category = 'All', isMatchMode, isGenerating
+                     styleDirection = 'Smart casual', weather = 'Mild / all season'
+                                                 # (2026-10-30, F26) present in code since F03 (styling options),
+                                                 # documented here because F26 sends them to ai-stylist
+                     resultsByAi (getter, F26) = results non-empty and every result's source == ai
 StyleResult (F03)    id: int, name, occasion, why: String, items: List<String>
+                     source: StyleResultSource = algorithm
+                                                 # (2026-10-30, F26) enum StyleResultSource { ai, algorithm }:
+                                                 # ai = composed by the ai-stylist function (Gemini);
+                                                 # algorithm = F03's in-app engine (templates/createMatches,
+                                                 # including every fallback). swapItem sets algorithm.
+                                                 # Not persisted: a saved Outfit has no source.
 Trip (F10, feature-local)        id: String 'trip-<ts>', name, destination, start, end (ISO yyyy-MM-dd), type, notes: String,
                                  days: int, items: List<PackingItem>
 PackingItem (F10, feature-local) key: String, label: String, wardrobeId: String | None, packed: bool
 ShoppingState (F11)  tab = 'discover', wishlist: List<String>, selectedId: String
+
+AppConfig (F25, added 2026-10-29)              # lib/shared/models/app_config.dart; read-only client config
+                                                # from Firebase Remote Config, never user data, never in Firestore
+    minSupportedVersion: String = ''           # key min_supported_version; installed < this -> forced update
+    latestVersion: String = ''                 # key latest_version; installed < this -> dismissible nudge
+    aiStylistEnabled: bool = false             # key ai_stylist_enabled; no consumer yet (F25 §13 Q1)
+                                                # (2026-10-30) consumed by F26: with a signed-in user, gates
+                                                # StylistCubit's AI path (read in lib/app.dart only)
+    premiumEnabled: bool = false               # key premium_enabled; no consumer yet (F25 §13 Q2)
+    maintenanceMessage: String = ''            # key maintenance_message; non-blank -> dismissible notice
 ```
 
 Seed (`SeedData`): 23 items (`wears = index % 5`), 2 outfits (`Everyday Essential` id 1, `Modern Weekend` id 2), planned `{'2026-10-15': PlannedEntry(outfitId: 1, occasion: 'Everyday')}`; constants `categories`, `colors`, `occasions`, `seasons`.
@@ -99,6 +119,10 @@ Seed (`SeedData`): 23 items (`wears = index % 5`), 2 outfits (`Everyday Essentia
 | Trip dates | `Choose dates` | — |
 | `wears` 0 | counted as "no recorded wears" | shown as `0`, never hidden |
 | Search `''` | shows all (not the "Nothing here yet" state) | no-match search shows "Nothing here yet" |
+| `AppConfig.minSupportedVersion` / `latestVersion` (F25) | key not published -> in-app default `''` -> no gate / no nudge | `''` -> no gate / no nudge (same as missing, by design); a non-empty but unparseable value (`'1.x'`) also -> no gate (fail-open, F25-A24) |
+| `AppConfig.maintenanceMessage` (F25) | key not published -> `''` -> no notice | `''` or whitespace-only -> no notice; any other text -> notice with the trimmed text (F25-A27) |
+| Installed app version (F25) | unreadable -> never gated, never nudged (F25-A23) | n/a |
+| `StyleResult.source` (F26, 2026-10-30) | never missing: the constructor default is `algorithm` | `StylistState.results` empty -> labelled as not-AI (the simulated wording), never as AI (F26-A65) |
 
 ## 5. Changing the model
 

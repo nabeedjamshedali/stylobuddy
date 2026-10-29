@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_routes.dart';
+import '../../shared/backend/analytics_service.dart';
 import 'cubit/onboarding_cubit.dart';
 import 'view/gender_choice_view.dart';
 import 'view/intro_view.dart';
@@ -14,7 +15,7 @@ import 'view/welcome_view.dart';
 final List<RouteBase> onboardingRoutes = [
   ShellRoute(
     builder: (context, state, child) => BlocProvider(
-      create: (_) => OnboardingCubit(),
+      create: (_) => OnboardingCubit(analytics: analyticsOf(context)),
       child: OnboardingBackScope(location: state.uri.path, child: child),
     ),
     routes: [

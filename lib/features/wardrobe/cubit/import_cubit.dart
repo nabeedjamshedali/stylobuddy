@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../shared/backend/analytics_service.dart';
 import '../../../shared/backend/storage_repository.dart';
 import '../../../shared/models/clothing_item.dart';
 import 'import_state.dart';
@@ -21,15 +22,18 @@ class ImportCubit extends Cubit<ImportState> {
     int Function()? clock,
     ImagePicker? imagePicker,
     StorageRepository? storageRepository,
+    AnalyticsService? analytics,
   }) : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
        _imagePicker = imagePicker ?? ImagePicker(),
        _storage = storageRepository ?? StorageRepository(),
+       _analytics = analytics ?? const AnalyticsService.noop(),
        super(const ImportState());
 
   final WardrobeCubit _wardrobe;
   final int Function() _clock;
   final ImagePicker _imagePicker;
   final StorageRepository _storage;
+  final AnalyticsService _analytics;
 
   /// Prototype `importPool`; import counts (1/3/6) slice into this list, so
   /// 6 is the maximum a batch can ever contain.
@@ -171,6 +175,11 @@ class ImportCubit extends Cubit<ImportState> {
           }
         }
         _wardrobe.addItems(finalized);
+        _analytics.wardrobeItemsAdded(
+          source: state.source,
+          itemCount: finalized.length,
+          photoCount: finalized.where((item) => item.imageUrl != null).length,
+        );
         emit(
           state.copyWith(
             drafts: const [],

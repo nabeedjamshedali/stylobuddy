@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_routes.dart';
+import '../../shared/backend/analytics_service.dart';
 import 'cubit/auth_cubit.dart';
 import 'view/auth_view.dart';
 import 'view/forgot_view.dart';
@@ -15,7 +16,10 @@ import 'view/verify_email_view.dart';
 final List<RouteBase> authRoutes = [
   ShellRoute(
     builder: (context, state, child) =>
-        BlocProvider(create: (_) => AuthCubit(), child: child),
+        BlocProvider(
+          create: (_) => AuthCubit(analytics: analyticsOf(context)),
+          child: child,
+        ),
     routes: [
       GoRoute(
         path: AppRoutes.auth,

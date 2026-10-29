@@ -9,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'core/router/app_router.dart';
 import 'core/router/app_routes.dart';
 import 'core/theme/app_theme.dart';
+import 'features/app_config/cubit/app_config_cubit.dart';
+import 'features/app_config/widgets/app_config_gate.dart';
 import 'features/builder/cubit/builder_cubit.dart';
 import 'features/calendar/cubit/planner_cubit.dart';
 import 'features/calendar/repository/firestore_planner_repository.dart';
@@ -31,9 +33,13 @@ import 'features/wardrobe/cubit/wardrobe_browse_cubit.dart';
 import 'features/wardrobe/cubit/wardrobe_cubit.dart';
 import 'features/wardrobe/repository/firestore_wardrobe_repository.dart';
 import 'features/wardrobe/repository/in_memory_wardrobe_repository.dart';
+import 'shared/backend/analytics_service.dart';
+import 'shared/backend/app_platform.dart';
 import 'shared/backend/auth_session.dart';
 import 'shared/backend/firestore_service.dart';
 import 'shared/backend/pending_onboarding_selections.dart';
+import 'shared/backend/remote_config_service.dart';
+import 'shared/backend/screen_view_tracker.dart';
 import 'shared/data/seed_data.dart';
 
 /// The single, combined D5 bootstrap seed writer (F18 fix-round, binding
@@ -82,6 +88,10 @@ class StyloBuddyApp extends StatefulWidget {
     this.uidStream,
     this.initialUid,
     this.firestoreOverride,
+    this.analytics,
+    this.remoteConfig,
+    this.installedVersion,
+    this.openStore,
   });
 
   /// Override for tests; when omitted a brand-new [GoRouter] is built (via
@@ -125,6 +135,24 @@ class StyloBuddyApp extends StatefulWidget {
   /// touched. A test instead passes a `FakeFirebaseFirestore()` here.
   final FirebaseFirestore? firestoreOverride;
 
+  /// F25: the app-wide analytics service. `main.dart` passes the Firebase
+  /// one; omitted (every test) it is the no-op service, so no test needs
+  /// Firebase. Provided once above the uid-keyed subtree, so it survives
+  /// sign-in/sign-out.
+  final AnalyticsService? analytics;
+
+  /// F25: Remote Config source. Defaults to [DefaultsRemoteConfigService]
+  /// (in-app defaults, never fetches).
+  final RemoteConfigService? remoteConfig;
+
+  /// F25: reads the installed `versionName`. Defaults to "unknown", which
+  /// never triggers the forced update.
+  final Future<String?> Function()? installedVersion;
+
+  /// F25: opens the store listing for the update button. Defaults to
+  /// [openStoreListing].
+  final Future<bool> Function()? openStore;
+
   @override
   State<StyloBuddyApp> createState() => _StyloBuddyAppState();
 }
@@ -146,9 +174,22 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
   /// `uidChanges()` doc comments in `shared/backend/auth_session.dart`.
   String? _initialUid;
 
+  /// F25: fixed for the app's lifetime (not rebuilt on a uid change).
+  late final AnalyticsService _analytics;
+  late final AppConfigCubit _appConfig;
+
   @override
   void initState() {
     super.initState();
+    _analytics = widget.analytics ?? const AnalyticsService.noop();
+    // F25: the Remote Config load runs in the background and never delays
+    // the first frame; until it lands the state is the in-app defaults.
+    _appConfig = AppConfigCubit(
+      remoteConfig: widget.remoteConfig ?? const DefaultsRemoteConfigService(),
+      installedVersion: widget.installedVersion,
+      openStore: widget.openStore ?? openStoreListing,
+    );
+    unawaited(_appConfig.load());
     if (widget.uidStream != null) {
       _uidStream = widget.uidStream!;
       _initialUid = widget.initialUid;
@@ -173,7 +214,23 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
   }
 
   @override
+  void dispose() {
+    unawaited(_appConfig.close());
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return RepositoryProvider<AnalyticsService>.value(
+      value: _analytics,
+      child: BlocProvider<AppConfigCubit>.value(
+        value: _appConfig,
+        child: _buildUidKeyedApp(),
+      ),
+    );
+  }
+
+  Widget _buildUidKeyedApp() {
     return StreamBuilder<String?>(
       stream: _uidStream,
       initialData: _initialUid,
@@ -210,6 +267,7 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
                         FirestoreService(firestore: widget.firestoreOverride),
                         snapshot.data!,
                       ),
+                analytics: _analytics,
               ),
             ),
             BlocProvider(
@@ -280,11 +338,17 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
               },
             ),
             BlocProvider(
-              create: (context) => StylistCubit(context.read<WardrobeCubit>()),
+              create: (context) => StylistCubit(
+                context.read<WardrobeCubit>(),
+                analytics: _analytics,
+              ),
             ),
             BlocProvider(create: (_) => WardrobeBrowseCubit()),
             BlocProvider(
-              create: (context) => ImportCubit(context.read<WardrobeCubit>()),
+              create: (context) => ImportCubit(
+                context.read<WardrobeCubit>(),
+                analytics: _analytics,
+              ),
             ),
             BlocProvider(
               create: (context) => BuilderCubit(context.read<OutfitsCubit>()),
@@ -326,7 +390,11 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
           // (created once, in _RoutedMaterialApp's own initState) forces
           // go_router to tear down and rebuild its whole Navigator/page
           // stack together with the providers above it.
-          child: _RoutedMaterialApp(router: widget.router, uid: snapshot.data),
+          child: _RoutedMaterialApp(
+            router: widget.router,
+            uid: snapshot.data,
+            analytics: _analytics,
+          ),
         );
       },
     );
@@ -339,9 +407,16 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
 /// where this is instantiated in [_StyloBuddyAppState.build] for why that
 /// placement (rather than building it inline in `build()`) is load-bearing.
 class _RoutedMaterialApp extends StatefulWidget {
-  const _RoutedMaterialApp({required this.router, required this.uid});
+  const _RoutedMaterialApp({
+    required this.router,
+    required this.uid,
+    required this.analytics,
+  });
 
   final GoRouter? router;
+
+  /// F25: every router this widget uses gets a [ScreenViewTracker].
+  final AnalyticsService analytics;
 
   /// The uid this subtree was built for (`null` means guest). Only consulted
   /// when `router` is null, to pick the freshly-built [GoRouter]'s
@@ -357,12 +432,29 @@ class _RoutedMaterialApp extends StatefulWidget {
 }
 
 class _RoutedMaterialAppState extends State<_RoutedMaterialApp> {
+  late final BackButtonDispatcher _backDispatcher = _UpdateWallBackDispatcher(
+    _updateRequired,
+  );
   late GoRouter _router;
+
+  bool _updateRequired() {
+    if (!mounted) return false;
+    try {
+      return context.read<AppConfigCubit>().state.updateRequired;
+    } catch (_) {
+      return false;
+    }
+  }
+
 
   /// Whether `_router` was built by this widget (and so must be disposed by
   /// it) rather than handed in via `widget.router` as a test override that
   /// this widget doesn't own.
   bool _ownsRouter = false;
+
+  /// F25: `screen_view` logging for `_router`; re-attached when a test swaps
+  /// the router, detached before the router is disposed.
+  late ScreenViewTracker _tracker;
 
   @override
   void initState() {
@@ -377,6 +469,7 @@ class _RoutedMaterialAppState extends State<_RoutedMaterialApp> {
       );
       _ownsRouter = true;
     }
+    _tracker = ScreenViewTracker(_router, widget.analytics)..attach();
   }
 
   @override
@@ -388,13 +481,16 @@ class _RoutedMaterialAppState extends State<_RoutedMaterialApp> {
     // torn down). Production never passes an override, so `widget.router`
     // is always null there and this never fires.
     if (widget.router != null && widget.router != oldWidget.router) {
+      _tracker.detach();
       _router = widget.router!;
       _ownsRouter = false;
+      _tracker = ScreenViewTracker(_router, widget.analytics)..attach();
     }
   }
 
   @override
   void dispose() {
+    _tracker.detach();
     // Only dispose a router this widget built itself — a test-injected
     // `widget.router` override is owned by whoever constructed it, not by
     // this widget.
@@ -409,8 +505,33 @@ class _RoutedMaterialAppState extends State<_RoutedMaterialApp> {
     return MaterialApp.router(
       title: 'StyloBuddy',
       theme: AppTheme.light,
-      routerConfig: _router,
+      // Explicit pieces (not `routerConfig:`) so the back button can be
+      // intercepted: while the forced-update screen is up, Android Back must
+      // leave the app, not silently pop routes of the hidden app behind it.
+      routeInformationProvider: _router.routeInformationProvider,
+      routeInformationParser: _router.routeInformationParser,
+      routerDelegate: _router.routerDelegate,
+      backButtonDispatcher: _backDispatcher,
       debugShowCheckedModeBanner: false,
+      // F25: forced update / maintenance notice / update nudge. Returns the
+      // Navigator untouched under default Remote Config values.
+      builder: (context, child) =>
+          AppConfigGate(child: child ?? const SizedBox.shrink()),
     );
+  }
+}
+
+/// F25 review fix: with the forced-update screen showing, Back reports
+/// "not handled" so the system leaves the app, instead of popping routes of
+/// the (hidden) app behind the wall.
+class _UpdateWallBackDispatcher extends RootBackButtonDispatcher {
+  _UpdateWallBackDispatcher(this._blocked);
+
+  final bool Function() _blocked;
+
+  @override
+  Future<bool> didPopRoute() {
+    if (_blocked()) return Future<bool>.value(false);
+    return super.didPopRoute();
   }
 }

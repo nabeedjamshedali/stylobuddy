@@ -56,7 +56,10 @@ class IntroView extends StatelessWidget {
                   children: [
                     _TopRow(
                       slide: state.slide,
-                      onSkip: () => context.go(AppRoutes.personalize),
+                      onSkip: () {
+                        context.read<OnboardingCubit>().skipFromIntro();
+                        context.go(AppRoutes.personalize);
+                      },
                     ),
                     Expanded(
                       child: SingleChildScrollView(

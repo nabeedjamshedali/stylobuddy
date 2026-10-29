@@ -2,18 +2,24 @@ import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../shared/backend/analytics_service.dart';
 import '../../wardrobe/cubit/wardrobe_cubit.dart';
 import '../models/style_result.dart';
 import 'stylist_state.dart';
 
 /// Shared results engine (F03, reused by F04 Match My Clothes).
 class StylistCubit extends Cubit<StylistState> {
-  StylistCubit(this._wardrobe, {int Function()? clock})
-    : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
-      super(const StylistState());
+  StylistCubit(
+    this._wardrobe, {
+    int Function()? clock,
+    AnalyticsService? analytics,
+  }) : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
+       _analytics = analytics ?? const AnalyticsService.noop(),
+       super(const StylistState());
 
   final WardrobeCubit _wardrobe;
   final int Function() _clock;
+  final AnalyticsService _analytics;
 
   static const generationDelay = Duration(milliseconds: 1150);
   static const swappedMessage = 'Garment replaced';
@@ -112,6 +118,10 @@ class StylistCubit extends Cubit<StylistState> {
         isMatchMode: match,
         isGenerating: false,
       ),
+    );
+    _analytics.outfitGenerated(
+      mode: match ? OutfitGenerationMode.match : OutfitGenerationMode.automatic,
+      resultCount: results.length,
     );
   }
 

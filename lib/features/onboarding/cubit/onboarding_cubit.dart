@@ -1,22 +1,36 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../shared/backend/analytics_service.dart';
 import '../../../shared/backend/pending_onboarding_selections.dart';
 import '../../../shared/models/genders.dart';
 import 'onboarding_state.dart';
 
 class OnboardingCubit extends Cubit<OnboardingState> {
-  OnboardingCubit() : super(const OnboardingState());
+  OnboardingCubit({AnalyticsService? analytics})
+    : _analytics = analytics ?? const AnalyticsService.noop(),
+      super(const OnboardingState());
+
+  final AnalyticsService _analytics;
 
   static const lastSlide = 4;
 
   /// Welcome "Get Started": always begins at slide 1. Keeps [OnboardingState.gender]
-  /// so returning to `/gender` shows the earlier choice (F24).
-  void start() => emit(state.copyWith(slide: 0, exit: OnboardingExit.none));
+  /// so returning to `/gender` shows the earlier choice (F24). Logs
+  /// `onboarding_start` (F25).
+  void start() {
+    emit(state.copyWith(slide: 0, exit: OnboardingExit.none));
+    _analytics.onboardingStarted();
+  }
 
-  /// Advances; from the last slide emits [OnboardingExit.finished].
+  /// Advances; from the last slide emits [OnboardingExit.finished] and logs
+  /// `onboarding_complete` with the number of chosen occasions (F25; the
+  /// gender choice is never logged).
   void next() {
     if (state.slide >= lastSlide) {
       emit(state.copyWith(exit: OnboardingExit.finished));
+      _analytics.onboardingCompleted(
+        occasionCount: state.chosenOccasions.length,
+      );
     } else {
       emit(state.copyWith(slide: state.slide + 1));
     }
@@ -30,6 +44,18 @@ class OnboardingCubit extends Cubit<OnboardingState> {
       emit(state.copyWith(slide: state.slide - 1));
     }
   }
+
+  /// Welcome "Skip introduction": logs `onboarding_skip` from `welcome`
+  /// (F25) and changes no state; the view navigates exactly as before.
+  void skipFromWelcome() =>
+      _analytics.onboardingSkipped(OnboardingSkipPoint.welcome);
+
+  /// Intro "Skip": logs `onboarding_skip` from `intro` with the 1-based slide
+  /// number (F25) and changes no state.
+  void skipFromIntro() => _analytics.onboardingSkipped(
+    OnboardingSkipPoint.intro,
+    slide: state.slide + 1,
+  );
 
   /// Called once the view has navigated for an exit signal.
   void clearExit() => emit(state.copyWith(exit: OnboardingExit.none));

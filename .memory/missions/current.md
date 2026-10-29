@@ -9,8 +9,8 @@
 | | |
 |---|---|
 | Current document | — |
-| Last completed | F24 — Gender-segregated onboarding (gates 1-3, 38/40; A39/A40 [L] deferred), 2026-10-22 |
-| Next up | No further Milestone 3 document registered; open: independent validator pass on F24 (ADR-004), deferred live runs (F18-F24 gate 4) |
+| Last completed | F25 — Firebase Analytics + Remote Config / forced update (gates 1-3, 43/46; A44-A46 [L] deferred), 2026-10-29. Before it: F24 (gates 1-3, 38/40), 2026-10-22 |
+| Next up | Independent validator pass on F25 (ADR-005) and F24 (ADR-004); owner publishes `scripts/remoteconfig.template.json` per `docs/runbooks/remote-config.md`; deferred live runs (F18-F25 gate 4). F26 (real AI stylist) doc present in the tree, not yet registered by this session |
 | Blockers | none |
 
 ## Standing constraints

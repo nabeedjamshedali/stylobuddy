@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
     show debugPrint, kDebugMode, listEquals;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../shared/backend/analytics_service.dart';
 import '../../../shared/models/outfit.dart';
 import '../../../shared/models/wear_event.dart';
 import '../../wardrobe/cubit/wardrobe_cubit.dart';
@@ -26,15 +27,21 @@ class OutfitsCubit extends Cubit<OutfitsState> {
     WardrobeCubit wardrobe, {
     OutfitsRepository? repository,
     int Function()? clock,
+    AnalyticsService? analytics,
   }) => OutfitsCubit._(
     wardrobe,
     repository ?? InMemoryOutfitsRepository(),
     clock: clock,
+    analytics: analytics ?? const AnalyticsService.noop(),
   );
 
-  OutfitsCubit._(this._wardrobe, this._repository, {int Function()? clock})
-    : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
-      super(
+  OutfitsCubit._(
+    this._wardrobe,
+    this._repository, {
+    int Function()? clock,
+    required this._analytics,
+  }) : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
+       super(
         OutfitsState(
           outfits: _initialOutfits(_repository),
           wearLog: _initialWearLog(_repository),
@@ -64,6 +71,7 @@ class OutfitsCubit extends Cubit<OutfitsState> {
   final WardrobeCubit _wardrobe;
   final OutfitsRepository _repository;
   final int Function() _clock;
+  final AnalyticsService _analytics;
   late final StreamSubscription<List<Outfit>> _outfitsSubscription;
   late final StreamSubscription<List<WearEvent>> _wearEventsSubscription;
 
@@ -133,6 +141,10 @@ class OutfitsCubit extends Cubit<OutfitsState> {
       items: List<String>.of(draft.items),
     );
     emit(state.copyWith(outfits: [saved, ...state.outfits]));
+    _analytics.outfitSaved(
+      source: OutfitSaveSource.generated,
+      itemCount: saved.items.length,
+    );
     unawaited(() async {
       try {
         await _repository.saveOrFind(saved, current: previous);
@@ -182,6 +194,10 @@ class OutfitsCubit extends Cubit<OutfitsState> {
       why: 'A look you put together from your own wardrobe.',
     );
     emit(state.copyWith(outfits: [created, ...state.outfits]));
+    _analytics.outfitSaved(
+      source: OutfitSaveSource.builder,
+      itemCount: created.items.length,
+    );
     _persistUpsert(candidate: created, editingId: null, current: previous);
     return created;
   }

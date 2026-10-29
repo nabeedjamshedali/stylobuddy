@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../shared/backend/analytics_service.dart';
 import '../repository/auth_repository.dart';
 import 'auth_state.dart';
 
@@ -8,11 +9,13 @@ import 'auth_state.dart';
 /// `authSubmit`, no backend, no email sent) to keep the cloned prototype UI
 /// intact. Google sign-in is wired to real Firebase Auth.
 class AuthCubit extends Cubit<AuthState> {
-  AuthCubit({AuthRepository? repository})
+  AuthCubit({AuthRepository? repository, AnalyticsService? analytics})
     : _repository = repository ?? AuthRepository(),
+      _analytics = analytics ?? const AnalyticsService.noop(),
       super(const AuthState());
 
   final AuthRepository _repository;
+  final AnalyticsService _analytics;
 
   static const shortPasswordError =
       'Use at least 8 characters for your password.';
@@ -94,6 +97,10 @@ class AuthCubit extends Cubit<AuthState> {
     return AuthResult.success;
   }
 
+  /// `/auth` "Skip for now": logs `guest_start` (F25) and changes no state;
+  /// the view navigates to Home exactly as before.
+  void continueAsGuest() => _analytics.guestStarted();
+
   /// Real Firebase Auth Google sign-in (the project's only wired provider).
   Future<AuthResult> signInWithGoogle() async {
     emit(
@@ -108,6 +115,7 @@ class AuthCubit extends Cubit<AuthState> {
           clearGoogleError: true,
         ),
       );
+      _analytics.signedIn(SignInMethod.google);
       return AuthResult.success;
     } on FirebaseAuthException catch (e) {
       emit(
