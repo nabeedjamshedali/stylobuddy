@@ -641,15 +641,47 @@ step. The emulator work can proceed without it.**
 Filled in during the build. See `foundation/05-testing-and-dod.md`.
 
 ```
-Status: DONE (Gates 1-3, emulator-proven; Gate 4 deferred pending an explicit human go-ahead)
+Status: DONE (Gates 1-3 emulator-proven; Gate 4 production deploy run 2026-10-29,
+real-device smoke A52 still pending)
 
 [x] Gate 1  Interface documented
 [x] Gate 2  Unit
-[x] Gate 3  Integration (emulator) — 55/55, committed as 6a2c380
-[ ] Gate 4  Live run (gated production deploy, §13 Q1 — controller go-ahead: ____ )
+[x] Gate 3  Integration (emulator) — 55/55 at 6a2c380; 58/58 with F24's gender rules (9e9a5f0)
+[~] Gate 4  Live run — go-ahead: 2026-10-29 (user chose "Audit, then deploy").
+            A50, A51, A53 done; A52's on-device walk is replaced for now by a
+            real signed-in REST smoke (below) and stays open for a device.
 
-Assertions: 50/54 PASS (A01-A49 + A46b). 4 deferred (A50-A53, production
-audit/deploy/live-smoke/rollback) pending an explicit human go-ahead.
+Assertions: 53/54 PASS. A52's real-Android-device checklist is the only one open.
 Regression: flutter analyze clean; default `flutter test` unaffected
-(593 passed/9 skipped, the new suite correctly excluded by default).
+(631 passed/10 skipped, the emulator suite correctly excluded by default).
+
+Production deploy record (2026-10-29, project stylobuddy-b7e46):
+- A53 rollback readiness: the live rules before the deploy were the console
+  default DENY-ALL (`match /{document=**} { allow read, write: if false; }`,
+  ruleset 6f604faa-e774-4c62-a273-2ea76e5f7f4d, created 2026-10-17). That
+  differs from what §8 "Before" assumed (an owner-only wildcard): until this
+  deploy no signed-in user could read or write Firestore in production at all.
+  Rollback = point release cloud.firestore back at that ruleset id (it still
+  exists in rules history) via the Rules API, or redeploy the 163-char deny-all
+  text. Not needed.
+- A50 read-only audit (zero writes): users 0, wardrobeItems 0, outfits 0,
+  wearEvents 0, plannedEntries 0, packingTrips 0 documents; 0 violations.
+  Production held no user data, so no existing document could be blocked.
+- A51 deploy: `firebase deploy` aborted before changing anything — the
+  service account lacks serviceusage.services.use, which the CLI's pre-flight
+  "is the Firestore API enabled" check needs. The same two steps the CLI performs
+  were done directly through the Firebase Rules API with the same service
+  account: POST rulesets (5a8ac738-8996-423e-906c-3bc51ba3edfc, the committed
+  F24-amended firestore.rules, 8429 chars) and PATCH releases/cloud.firestore
+  at 2026-10-29T19:02:54Z. Credentials stayed in ~/.secrets, never committed.
+- A52 substitute — live REST smoke with real Firebase ID tokens for two
+  temporary users, 16/16 pass: owner allowed to create the 14-key profile
+  (with gender), read it, and create a valid wardrobe item, outfit, planned
+  entry and packing trip; denied (403) for an unexpected key, gender "other",
+  wears = -1, id != doc id, a non-date plannedEntries id, another user
+  reading or writing a user's documents, a signed-out read, and a write
+  outside users/**. Every temporary document and both temporary auth users
+  were deleted afterwards; a follow-up audit confirmed production is empty.
+  NOT covered (needs a device): the full app flow end to end on a phone,
+  offline/optimistic-write rollback behaviour, Crashlytics for permission-denied.
 ```

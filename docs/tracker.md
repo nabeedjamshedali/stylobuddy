@@ -44,11 +44,9 @@ explicit user decision, 1 (this integration/docs pass) in progress.
       F15); `ai-stylist` (stub, F23 — deployed to Supabase and live-probed
       2026-10-29, still returns 501 until a provider is chosen; see AI note below)
 - [x] Firestore security rules — hardened, per-collection field
-      validation, proven against the emulator (55/55, F22). **Production
-      deploy is deferred pending an explicit go-ahead** (a rule stricter
-      than the real app silently rolls back optimistic UI writes and can
-      permanently block new-user bootstraps — not something to ship
-      without a dedicated pre-deploy data audit)
+      validation, emulator-proven (58/58, F22/F24) and **deployed to
+      production 2026-10-29** after a clean audit; live REST smoke 16/16.
+      Only the on-device walkthrough (F22-A52) is open.
 - [ ] RevenueCat (premium/subscription screens are UI previews only —
       "Free" plan is hardcoded, no entitlement checks) — not in scope of
       the backend-wiring plan, still open
@@ -70,7 +68,7 @@ explicit user decision, 1 (this integration/docs pass) in progress.
 
 ## Security & Hardening
 - [x] Firestore rules audit — done, emulator-proven (F22); production
-      deploy gated on an explicit go-ahead (see above)
+      deployed to production 2026-10-29 (see above)
 - [ ] Supabase auth checks — `firebase-auth.ts`'s JWT verification is
       covered by both Edge Functions' tests; a dedicated audit pass
       beyond that hasn't been run

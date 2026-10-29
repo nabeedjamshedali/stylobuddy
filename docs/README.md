@@ -101,7 +101,7 @@ why.
 | F19 | [Shopping wishlist backend](features/F19-shopping-wishlist-backend.md) | F14, F18 | 19 | DONE (gates 1-3; gate 4 — A19 `[L]` — pending) |
 | F20 | [Packing backend](features/F20-packing-backend.md) | F14 | 20 | DONE (gates 1-3; gate 4 — A20 `[L]` — pending) |
 | F21 | [Email/password auth](features/F21-email-password-auth.md) | F14 | 25 | **DEFERRED** — skipped by explicit user decision (2026-10-20); doc kept for reference only |
-| F22 | [Firestore rules hardening](features/F22-firestore-rules-hardening.md) | F14-F20 (F21 non-blocking) | 54 | DONE (gates 1-3, emulator-proven, 50/54; gate 4 — A50-A53 production deploy — deferred pending an explicit go-ahead) |
+| F22 | [Firestore rules hardening](features/F22-firestore-rules-hardening.md) | F14-F20 (F21 non-blocking) | 54 | DONE (gates 1-3, emulator-proven; deployed to production 2026-10-29 after a clean audit, live REST smoke 16/16; 53/54 — only A52's on-device walk is open) |
 | F23 | [ai-stylist stub](features/F23-ai-stylist-stub.md) | F15 | 25 | DONE (all 4 gates, 25/25; deployed to Supabase and live-probed 2026-10-29 — still a 501 stub until an LLM provider is chosen) |
 
 9 of the plan's 11 tasks are complete, 1 (Task 8/F21) was explicitly
@@ -118,6 +118,7 @@ an approved design doc under `docs/superpowers/specs/`.
 | # | Document | Depends on | Assertions | Status |
 |---|---|---|---|---|
 | F24 | [Gender-segregated onboarding + Profile.gender](features/F24-gender-onboarding.md) | F02, F18, F22 | 40 | DONE (gates 1-3, 38/40; gate 4 — A39 device screenshots, A40 live Firestore — pending, same deferral as every Milestone-2 feature); scrutiny-validated and contract-audited 2026-10-22, both signed off |
+| F25 | [Firebase Analytics + Remote Config (flags, forced update)](features/F25-analytics-remote-config.md) | F02, F03, F06, F07, F13, F14, F15, F16, F24 | 46 | IN PROGRESS |
 
 ---
 

@@ -138,13 +138,14 @@ re-ran it (no screen's UI changed, only what's behind each Cubit).
   `createMatches`) is completely untouched. **The user has not chosen a
   provider (Claude/OpenAI/other) yet — this is a standing reminder to
   raise with them, not something to decide unilaterally.**
-- **Firestore rules production deploy** — the hardened rules exist in
-  `firestore.rules` and pass 55/55 against the emulator, but
-  `firebase deploy --only firestore:rules` has never been run. A rule
-  stricter than the real app silently rolls back optimistic UI writes
-  and can permanently block a new user's bootstrap — this needs a clean
-  pre-deploy production-data audit and an explicit go-ahead, not an
-  automatic step at the end of a task.
+- **Firestore rules production deploy** — DONE 2026-10-29 with the user's
+  go-ahead, after a clean read-only audit (production held 0 documents).
+  Worth knowing: the live rules before this were the console default
+  deny-all, so Firestore was unusable in production until now. Deployed
+  through the Firebase Rules API (the CLI's pre-flight needs a permission the
+  service account lacks); a signed-in REST smoke with two temporary users
+  passed 16/16. Still open: the on-device walkthrough (F22-A52) — optimistic
+  write rollback and the full app flow have not been seen on a phone.
 - **`ai-stylist` Edge Function deploy** — DONE 2026-10-29 with the user's
   go-ahead: live on Supabase project `dbaeaqyoyilxcuwplvuw` (v1), live
   probes A23/A24 pass (401 `Unauthorized` without a valid Firebase token;
