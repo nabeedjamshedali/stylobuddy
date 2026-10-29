@@ -57,7 +57,10 @@ Deno.test(
 );
 
 Deno.test(
-  "F23_A11 getLlmAdapter returns null for every LLM_PROVIDER value with zero providers registered",
+  // Amended 2026-10-30 (F26): "gemini" is now registered, so the title's
+  // "with zero providers registered" no longer holds; the value list and the
+  // expected null for each are unchanged. Was: "...with zero providers registered".
+  "F23_A11 getLlmAdapter returns null for every unregistered LLM_PROVIDER value",
   () => {
     for (const value of ["", "   ", "anthropic", "openai", "claude", "ANTHROPIC"]) {
       withEnv(value, () => {
@@ -161,7 +164,12 @@ Deno.test(
     const source = Deno.readTextFileSync(
       new URL("./llm-adapter.ts", import.meta.url),
     );
-    assertEquals(/^\s*import\s/m.test(source), false, "no static import statement");
+    // Amended 2026-10-30 (F26): the file may have exactly one static import,
+    // of the provider module. Was: "no static import statement".
+    const staticImports = [...source.matchAll(/^\s*import\s[^;]*?from\s*["']([^"']+)["']/gm)]
+      .map((m) => m[1]);
+    assertEquals(staticImports, ["./gemini-adapter.ts"], "sole import is ./gemini-adapter.ts");
+    assertEquals(/^\s*import\s*["']/m.test(source), false, "no side-effect import");
     // Fix round, Important finding 5(c): the old regex only caught the
     // static `import` keyword at line-start, missing the dynamic
     // `import(...)` call form (e.g. `async function sneaky() { return
@@ -213,5 +221,81 @@ Deno.test(
       ["function getLlmAdapter", "interface LlmAdapter"],
       `unexpected top-level export set: ${JSON.stringify(topLevelExports)}`,
     );
+  },
+);
+
+Deno.test(
+  "F26_A33 getLlmAdapter registers exactly \"gemini\" (trimmed, case-sensitive) and reports missing keys distinctly",
+  () => {
+    const original = Deno.env.get("GEMINI_API_KEY");
+    const setKey = (value: string | undefined) => {
+      if (value === undefined) Deno.env.delete("GEMINI_API_KEY");
+      else Deno.env.set("GEMINI_API_KEY", value);
+    };
+    try {
+      // Registered: non-null and silent, with and without surrounding spaces.
+      setKey("k-marker-0a");
+      for (const value of ["gemini", " gemini "]) {
+        const lines = withEnv(value, () => {
+          let adapter: LlmAdapter | null = null;
+          const out = captureWarn(() => {
+            adapter = getLlmAdapter();
+          });
+          assertNotEquals(adapter, null, `expected an adapter for ${JSON.stringify(value)}`);
+          return out;
+        });
+        assertEquals(lines, []);
+      }
+
+      // Case-sensitive: other casings are unregistered (F23 warning, no key).
+      for (const value of ["Gemini", "GEMINI"]) {
+        const lines = withEnv(value, () => {
+          let adapter: LlmAdapter | null = null;
+          const out = captureWarn(() => {
+            adapter = getLlmAdapter();
+          });
+          assertEquals(adapter, null);
+          return out;
+        });
+        assertEquals(lines, [`LLM_PROVIDER "${value}" is not a registered provider`]);
+      }
+
+      // gemini without a usable key: null with its own single warning.
+      const reasons: Array<[string | undefined, string]> = [
+        [undefined, "GEMINI_API_KEY is not set"],
+        ["", "GEMINI_API_KEY is set but empty"],
+        ["   ", "GEMINI_API_KEY is set but empty"],
+      ];
+      const seen: string[] = [];
+      for (const [key, expected] of reasons) {
+        setKey(key);
+        const lines = withEnv("gemini", () => {
+          let adapter: LlmAdapter | null = null;
+          const out = captureWarn(() => {
+            adapter = getLlmAdapter();
+          });
+          assertEquals(adapter, null);
+          return out;
+        });
+        assertEquals(lines.length, 1);
+        assertEquals(lines[0].includes(expected), true, lines[0]);
+        seen.push(lines[0]);
+      }
+      // The two new messages differ from each other and from F23's three.
+      const f23 = [
+        "LLM_PROVIDER is not set",
+        "LLM_PROVIDER is set but empty",
+        'LLM_PROVIDER "x" is not a registered provider',
+      ];
+      const all = new Set([seen[0], seen[1], ...f23]);
+      assertEquals(all.size, 5);
+
+      // The key value never appears in a warning.
+      setKey("k-marker-0a");
+      const keyLines = withEnv("gemini", () => captureWarn(() => getLlmAdapter()));
+      for (const line of keyLines) assertEquals(line.includes("k-marker-0a"), false);
+    } finally {
+      setKey(original);
+    }
   },
 );
