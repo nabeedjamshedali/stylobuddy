@@ -145,9 +145,11 @@ re-ran it (no screen's UI changed, only what's behind each Cubit).
   and can permanently block a new user's bootstrap — this needs a clean
   pre-deploy production-data audit and an explicit go-ahead, not an
   automatic step at the end of a task.
-- **`ai-stylist` Edge Function deploy** — same deferred-deploy pattern,
-  lower risk (nothing calls it), but still a new public endpoint that
-  warrants a deliberate sign-off rather than an automatic deploy.
+- **`ai-stylist` Edge Function deploy** — DONE 2026-10-29 with the user's
+  go-ahead: live on Supabase project `dbaeaqyoyilxcuwplvuw` (v1), live
+  probes A23/A24 pass (401 `Unauthorized` without a valid Firebase token;
+  501 `{"error":"AI provider not configured yet"}` with one). Still a stub
+  — nothing in the app calls it and no LLM provider is configured.
 - **Real email/password Firebase Auth** — skipped by explicit user
   decision (see above). The demo-only login/signup/forgot forms are
   unchanged from before this plan. `docs/features/F21-email-password-

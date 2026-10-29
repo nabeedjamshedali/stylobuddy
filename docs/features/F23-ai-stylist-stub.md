@@ -17,7 +17,7 @@
 > `storage-upload-url/index.ts` + `index.test.ts` set the handler and test
 > pattern this task follows.
 
-**Status:** DONE (Gates 1-3 closed — A01-A21+A25, 22/22 non-deferred assertions; Gate 4 — A22-A24, production deploy — deferred pending an explicit human go-ahead, §13 Q2) · **Milestone:** 2 · **Depends on:** F15
+**Status:** DONE (all 4 gates — A01-A25 25/25; Gate 4 production deploy + live probes A22-A24 run 2026-10-29 after the user's explicit go-ahead) · **Milestone:** 2 · **Depends on:** F15
 
 ---
 
@@ -466,19 +466,42 @@ the proposals below and be amended by dated note if a ruling differs.**
 Filled in during the build. See `foundation/05-testing-and-dod.md`.
 
 ```
-Status: Local work complete (2026-10-20). A01-A21 + A25 PASS. A22-A24
-deferred — gated live deploy not run, per §13 Q2 ruling.
+Status: DONE (2026-10-29). A01-A25 PASS, including the live-deploy
+assertions A22-A24.
 
 [x] Gate 1  Interface documented (this document, §6)
 [x] Gate 2  Unit — 16 Deno [U] tests (5 llm-adapter.test.ts + 11
     index.test.ts) plus the Dart guard test (A18), all passing
 [x] Gate 3  Integration (real verifyFirebaseToken + local JWKS, real
     getLlmAdapter + Deno.env) — A04, A05, A06, all passing
-[ ] Gate 4  Live run (gated deploy, §13 Q2 — controller/user go-ahead: ____ )
+[x] Gate 4  Live run — user go-ahead: 2026-10-29 ("you can deploy
+    edge-functions to supabase", with a fresh Supabase access token)
 
-Assertions: 22/22 non-deferred PASS (A01-A21, A25). 3 deferred (A22-A24,
-[L], pending the Gate 4 go-ahead).
+Assertions: 25/25 PASS.
 Regression: none — storage-upload-url (5/5), firebase-auth (7/7) and the
 full flutter test suite all pass unchanged; flutter analyze clean; nothing
 under lib/ touched.
+
+Live deploy record (2026-10-29):
+- Pre-step: project dbaeaqyoyilxcuwplvuw was INACTIVE (free-tier auto-pause
+  after idle). Restored through the Management API
+  (POST /v1/projects/{ref}/restore) and polled to ACTIVE_HEALTHY before
+  anything else ran. A paused project will pause again after another idle
+  week unless the app (or a keep-alive) touches it.
+- Local preconditions re-run immediately before deploy: deno test 23
+  passed / 0 failed, deno lint clean.
+- A22: `supabase secrets list` (names only) showed no LLM_PROVIDER.
+  storage-upload-url was v8 before; `supabase functions deploy ai-stylist
+  --project-ref dbaeaqyoyilxcuwplvuw` exited 0; afterwards the list shows
+  ai-stylist v1 ACTIVE (verify_jwt=false) and storage-upload-url still v8.
+  PASS.
+- A23: POST with no Authorization header -> 401, body exactly
+  "Unauthorized", content-type text/plain (not a gateway JSON code). POST
+  with "Authorization: Bearer garbage" -> identical. PASS.
+- A24: a real Firebase ID token for a temporary test user (service-account
+  custom token exchanged via Identity Toolkit; never logged) -> 501,
+  content-type application/json, body {"error":"AI provider not configured
+  yet"}. The temporary test user was deleted right after. PASS.
+- The access token was read from ~/.secrets/stylobuddy/supabase-access-
+  token.txt (outside the repo) and never committed or echoed.
 ```

@@ -102,7 +102,7 @@ why.
 | F20 | [Packing backend](features/F20-packing-backend.md) | F14 | 20 | DONE (gates 1-3; gate 4 — A20 `[L]` — pending) |
 | F21 | [Email/password auth](features/F21-email-password-auth.md) | F14 | 25 | **DEFERRED** — skipped by explicit user decision (2026-10-20); doc kept for reference only |
 | F22 | [Firestore rules hardening](features/F22-firestore-rules-hardening.md) | F14-F20 (F21 non-blocking) | 54 | DONE (gates 1-3, emulator-proven, 50/54; gate 4 — A50-A53 production deploy — deferred pending an explicit go-ahead) |
-| F23 | [ai-stylist stub](features/F23-ai-stylist-stub.md) | F15 | 25 | DONE (gates 1-3, 22/22 non-deferred; gate 4 — A22-A24 production deploy — deferred pending an explicit go-ahead) |
+| F23 | [ai-stylist stub](features/F23-ai-stylist-stub.md) | F15 | 25 | DONE (all 4 gates, 25/25; deployed to Supabase and live-probed 2026-10-29 — still a 501 stub until an LLM provider is chosen) |
 
 9 of the plan's 11 tasks are complete, 1 (Task 8/F21) was explicitly
 skipped by the user, and the 11th (integration/docs — this pass) closed

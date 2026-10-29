@@ -41,7 +41,8 @@ explicit user decision, 1 (this integration/docs pass) in progress.
 - [x] Supabase Storage — real signed upload URLs for wardrobe photos via
       the `storage-upload-url` Edge Function (F15)
 - [x] Supabase Edge Functions — `storage-upload-url` (real, deployed,
-      F15); `ai-stylist` (stub only, F23 — see AI note below)
+      F15); `ai-stylist` (stub, F23 — deployed to Supabase and live-probed
+      2026-10-29, still returns 501 until a provider is chosen; see AI note below)
 - [x] Firestore security rules — hardened, per-collection field
       validation, proven against the emulator (55/55, F22). **Production
       deploy is deferred pending an explicit go-ahead** (a rule stricter
