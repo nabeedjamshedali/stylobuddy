@@ -1,6 +1,6 @@
 # TACN: Type-Aware Compatibility Network
 
-Research code for the technical report *StyloBuddy: A Hybrid Deep Learning and LLM Framework for Trend-Aware Outfit Recommendation* (TODO: add paper link).
+Research code for the technical report *StyloBuddy: A Hybrid Deep Learning and LLM Framework for Trend-Aware Outfit Recommendation* ([Zenodo, doi:10.5281/zenodo.23838353](https://doi.org/10.5281/zenodo.23838353)).
 
 TACN scores outfit compatibility with a partially fine-tuned ResNet-18 backbone and a separate projection head per garment type, trained with a margin-based contrastive loss and hard-negative mining.
 
