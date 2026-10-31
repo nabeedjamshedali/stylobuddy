@@ -38,6 +38,12 @@ class StylistState {
     return results.first;
   }
 
+  /// True only when there are results and every one came from the AI. An
+  /// empty list is not AI (F26).
+  bool get resultsByAi =>
+      results.isNotEmpty &&
+      results.every((r) => r.source == StyleResultSource.ai);
+
   StylistState copyWith({
     String? occasion,
     String? styleDirection,

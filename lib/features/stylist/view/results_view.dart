@@ -72,8 +72,10 @@ class ResultsView extends StatelessWidget {
               label: '↻ Refresh combinations',
               onTap: () => refreshStylistResults(context, match: match),
             ),
-            const DemoNote(
-              'Styling examples are simulated. No real AI evaluation or percentage scores are claimed.',
+            DemoNote(
+              state.resultsByAi
+                  ? 'Styled by AI from the pieces in your wardrobe.'
+                  : 'Styling examples are simulated. No real AI evaluation or percentage scores are claimed.',
               style: DemoNoteStyle.ai,
             ),
           ],

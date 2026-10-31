@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../shared/backend/ai_stylist_client.dart';
 import '../../../shared/backend/analytics_service.dart';
+import '../../../shared/models/clothing_item.dart';
 import '../../wardrobe/cubit/wardrobe_cubit.dart';
 import '../models/style_result.dart';
 import 'stylist_state.dart';
@@ -13,6 +15,8 @@ class StylistCubit extends Cubit<StylistState> {
     this._wardrobe, {
     int Function()? clock,
     AnalyticsService? analytics,
+    this._aiClient,
+    this._aiAvailable,
   }) : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
        _analytics = analytics ?? const AnalyticsService.noop(),
        super(const StylistState());
@@ -20,8 +24,17 @@ class StylistCubit extends Cubit<StylistState> {
   final WardrobeCubit _wardrobe;
   final int Function() _clock;
   final AnalyticsService _analytics;
+  final AiStylistClient? _aiClient;
+  final bool Function()? _aiAvailable;
 
   static const generationDelay = Duration(milliseconds: 1150);
+
+  /// Ceiling for the AI call (F26); the HTTP client's own 15 s timeout
+  /// normally fires first.
+  static const aiTimeout = Duration(seconds: 16);
+
+  /// Most wardrobe items sent to the AI (F26 section 6.4).
+  static const _maxAiItems = 120;
   static const swappedMessage = 'Garment replaced';
   static const lockedSwapMessage = 'Mandatory items cannot be swapped';
 
@@ -85,21 +98,124 @@ class StylistCubit extends Cubit<StylistState> {
     final combos = [
       for (final t in _templates) t.where(owned.contains).toList(),
     ];
-    return _generate(combos, _automaticNames, match: false);
+    return _generate(
+      combos,
+      _automaticNames,
+      match: false,
+      aiRequest: _buildAiRequest(match: false),
+    );
   }
 
-  Future<void> generateMatches() =>
-      _generate(createMatches(), _matchNames, match: true);
+  Future<void> generateMatches() => _generate(
+    createMatches(),
+    _matchNames,
+    match: true,
+    aiRequest: _buildAiRequest(match: true),
+  );
+
+  /// Whether the AI path is switched on for this user right now (flag on and
+  /// signed in, decided by the app). Evaluated on every read; the views read
+  /// this one getter for the honest labels (F26).
+  bool get aiAvailable => _aiClient != null && (_aiAvailable?.call() ?? false);
+
+  /// The request for the AI path, or null when the algorithm must run (AI
+  /// unavailable, empty wardrobe, or a match request that cannot be built).
+  AiStylistRequest? _buildAiRequest({required bool match}) {
+    if (!aiAvailable) return null;
+    final wardrobe = _wardrobe.state.items;
+    if (wardrobe.isEmpty) return null;
+    bool sendable(String id) =>
+        id.isNotEmpty && id.length <= AiStylistRequest.maxFieldLength;
+    final owned = wardrobe.map((i) => i.id).toSet();
+    final selectedOwned = match
+        ? state.selected.where(owned.contains).toList()
+        : <String>[];
+    final lockedOwned = state.locked.where(selectedOwned.contains).toList();
+    if (lockedOwned.any((id) => !sendable(id))) return null;
+    // Bucket order: locked, other selected, same occasion, the rest. Each
+    // bucket keeps wardrobe order and no item appears twice.
+    final seen = <String>{};
+    final ordered = <ClothingItem>[];
+    void take(bool Function(ClothingItem) test) {
+      for (final i in wardrobe) {
+        if (sendable(i.id) && !seen.contains(i.id) && test(i)) {
+          seen.add(i.id);
+          ordered.add(i);
+        }
+      }
+    }
+
+    take((i) => lockedOwned.contains(i.id));
+    take((i) => selectedOwned.contains(i.id));
+    take((i) => i.occasion == state.occasion);
+    take((_) => true);
+    final items = ordered.take(_maxAiItems).toList();
+    final sent = items.map((i) => i.id).toSet();
+    final selectedIds = [
+      for (final id in selectedOwned)
+        if (sent.contains(id)) id,
+    ];
+    if (match && selectedIds.isEmpty) return null;
+    return AiStylistRequest(
+      mode: match ? AiStylistMode.match : AiStylistMode.auto,
+      occasion: state.occasion,
+      styleDirection: state.styleDirection,
+      weather: state.weather,
+      includeAccessories: state.accessories,
+      lockedIds: state.locked.where(selectedIds.contains).toList(),
+      selectedIds: selectedIds,
+      items: items,
+    );
+  }
+
+  Future<List<AiOutfit>?> _askAi(AiStylistRequest request) async {
+    try {
+      return await _aiClient!.suggest(request).timeout(aiTimeout);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Client-side recheck of the AI answer (F26-A59): only sent ids, 2-6
+  /// distinct per look, locked pieces kept, and with "Complete my outfits"
+  /// off only selected pieces. At most three looks.
+  List<AiOutfit> _validAiOutfits(
+    List<AiOutfit>? outfits,
+    AiStylistRequest request,
+  ) {
+    if (outfits == null) return const [];
+    final sent = request.items.map((i) => i.id).toSet();
+    final matchMode = request.mode == AiStylistMode.match;
+    final kept = <AiOutfit>[];
+    for (final o in outfits) {
+      final ids = <String>[];
+      for (final id in o.itemIds) {
+        if (sent.contains(id) && !ids.contains(id)) ids.add(id);
+      }
+      if (ids.length < 2 || ids.length > 6) continue;
+      if (matchMode) {
+        if (request.lockedIds.any((id) => !ids.contains(id))) continue;
+        if (!request.includeAccessories &&
+            ids.any((id) => !request.selectedIds.contains(id))) {
+          continue;
+        }
+      }
+      kept.add(AiOutfit(name: o.name, why: o.why, itemIds: ids));
+      if (kept.length == 3) break;
+    }
+    return kept;
+  }
 
   Future<void> _generate(
     List<List<String>> combos,
     List<String> names, {
     required bool match,
+    AiStylistRequest? aiRequest,
   }) async {
     if (state.isGenerating) return;
     final occasion = state.occasion;
     final base = _clock();
-    final results = [
+    var results = [
       for (var i = 0; i < combos.length; i++)
         StyleResult(
           id: base + i,
@@ -110,14 +226,32 @@ class StylistCubit extends Cubit<StylistState> {
         ),
     ];
     emit(state.copyWith(isGenerating: true));
-    await Future<void>.delayed(generationDelay);
+    if (aiRequest == null) {
+      await Future<void>.delayed(generationDelay);
+    } else {
+      // generationDelay is the minimum wait, so a fast answer does not flash.
+      final answers = await Future.wait<Object?>([
+        Future<void>.delayed(generationDelay),
+        _askAi(aiRequest),
+      ]);
+      final outfits = _validAiOutfits(answers[1] as List<AiOutfit>?, aiRequest);
+      if (outfits.isNotEmpty) {
+        results = [
+          for (var i = 0; i < outfits.length; i++)
+            StyleResult(
+              id: base + i,
+              name: outfits[i].name,
+              items: outfits[i].itemIds,
+              occasion: occasion,
+              why: outfits[i].why,
+              source: StyleResultSource.ai,
+            ),
+        ];
+      }
+    }
     if (isClosed) return;
     emit(
-      state.copyWith(
-        results: results,
-        isMatchMode: match,
-        isGenerating: false,
-      ),
+      state.copyWith(results: results, isMatchMode: match, isGenerating: false),
     );
     _analytics.outfitGenerated(
       mode: match ? OutfitGenerationMode.match : OutfitGenerationMode.automatic,
@@ -190,6 +324,7 @@ class StylistCubit extends Cubit<StylistState> {
     final newName = _wardrobe.itemOrFallback(newId).name;
     final updated = active.copyWith(
       items: [for (final id in active.items) id == oldId ? newId : id],
+      source: StyleResultSource.algorithm,
       why:
           'This preview pairs $newName with the other selected wardrobe pieces. Review the complete styling before wearing.',
     );

@@ -183,7 +183,7 @@ class ResultDetailView extends StatelessWidget {
           onShare: () => _share(context),
           onRefresh: () => refreshStylistResults(context, match: match),
         ),
-        const DetailFootnote(),
+        DetailFootnote(source: r.source),
       ],
     );
   }

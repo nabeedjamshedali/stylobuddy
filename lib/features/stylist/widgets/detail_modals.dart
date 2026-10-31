@@ -6,12 +6,16 @@ import '../../../shared/models/clothing_item.dart';
 import '../../../shared/widgets/app_buttons.dart';
 import '../../../shared/widgets/demo_note.dart';
 import '../../../shared/widgets/garment_image.dart';
+import '../models/style_result.dart';
 import '../stylist_tokens.dart';
 import 'muted_text.dart';
 
 /// `.od-footnote`; honours the global demo-note switch.
 class DetailFootnote extends StatelessWidget {
-  const DetailFootnote({super.key});
+  const DetailFootnote({super.key, this.source = StyleResultSource.algorithm});
+
+  /// Who produced the active look; decides which honest wording shows.
+  final StyleResultSource source;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +23,9 @@ class DetailFootnote extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Text(
-        'Outfit selections and styling explanations are simulated for design review.',
+        source == StyleResultSource.ai
+            ? 'Styled by AI from the pieces in your wardrobe.'
+            : 'Outfit selections and styling explanations are simulated for design review.',
         textAlign: TextAlign.center,
         style: AppTextStyles.dmSans(
           size: 9,

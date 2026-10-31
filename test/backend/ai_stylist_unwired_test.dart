@@ -2,37 +2,40 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// F23-A18: `ai-stylist` (docs/features/F23-ai-stylist-stub.md) is a
-/// deployed-but-unreferenced Edge Function this round — no Flutter code may
-/// call it. This is a structural check, not a behavioral one: every file
-/// under `lib/` is scanned, and the test fails (naming the offending file)
-/// if any contains "ai-stylist" (case-insensitive) or "functions/v1/ai".
-/// It passes on the current tree: today the only Edge Function reference
-/// in `lib/` is `storage-upload-url` in
-/// `lib/shared/backend/storage_repository.dart`.
+/// F23-A18 (amended 2026-10-30 for F26): the `ai-stylist` Edge Function is
+/// wired in exactly one place, `lib/shared/backend/http_ai_stylist_client.dart`.
+/// No view, widget or Cubit may talk to the endpoint directly. Every file
+/// under `lib/` is scanned; the test fails (naming the file) if any file other
+/// than that one contains "ai-stylist" (case-insensitive) or "functions/v1/ai",
+/// or if that file is missing or lacks "functions/v1/ai-stylist".
 void main() {
-  test(
-    'F23_A18 no lib/ file references ai-stylist',
-    () {
-      final libDir = Directory('lib');
-      expect(libDir.existsSync(), isTrue, reason: 'run from repo root');
+  test('F23_A18 only the HTTP client references ai-stylist', () {
+    final libDir = Directory('lib');
+    expect(libDir.existsSync(), isTrue, reason: 'run from repo root');
 
-      final offenders = <String>[];
-      for (final entity in libDir.listSync(recursive: true)) {
-        if (entity is! File) continue;
-        if (!entity.path.endsWith('.dart')) continue;
-        final content = entity.readAsStringSync();
-        final lower = content.toLowerCase();
-        if (lower.contains('ai-stylist') || lower.contains('functions/v1/ai')) {
-          offenders.add(entity.path);
-        }
+    const clientPath = 'lib/shared/backend/http_ai_stylist_client.dart';
+    final offenders = <String>[];
+    for (final entity in libDir.listSync(recursive: true)) {
+      if (entity is! File) continue;
+      if (!entity.path.endsWith('.dart')) continue;
+      final path = entity.path.replaceAll('\', '/');
+      if (path == clientPath) continue;
+      final lower = entity.readAsStringSync().toLowerCase();
+      if (lower.contains('ai-stylist') || lower.contains('functions/v1/ai')) {
+        offenders.add(entity.path);
       }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason: 'only $clientPath may reference ai-stylist: $offenders',
+    );
 
-      expect(
-        offenders,
-        isEmpty,
-        reason: 'lib/ must not reference ai-stylist: $offenders',
-      );
-    },
-  );
+    final client = File(clientPath);
+    expect(client.existsSync(), isTrue, reason: '$clientPath must exist');
+    expect(
+      client.readAsStringSync().toLowerCase(),
+      contains('functions/v1/ai-stylist'),
+    );
+  });
 }

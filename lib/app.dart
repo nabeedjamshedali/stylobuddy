@@ -33,10 +33,12 @@ import 'features/wardrobe/cubit/wardrobe_browse_cubit.dart';
 import 'features/wardrobe/cubit/wardrobe_cubit.dart';
 import 'features/wardrobe/repository/firestore_wardrobe_repository.dart';
 import 'features/wardrobe/repository/in_memory_wardrobe_repository.dart';
+import 'shared/backend/ai_stylist_client.dart';
 import 'shared/backend/analytics_service.dart';
 import 'shared/backend/app_platform.dart';
 import 'shared/backend/auth_session.dart';
 import 'shared/backend/firestore_service.dart';
+import 'shared/backend/http_ai_stylist_client.dart';
 import 'shared/backend/pending_onboarding_selections.dart';
 import 'shared/backend/remote_config_service.dart';
 import 'shared/backend/screen_view_tracker.dart';
@@ -92,6 +94,7 @@ class StyloBuddyApp extends StatefulWidget {
     this.remoteConfig,
     this.installedVersion,
     this.openStore,
+    this.aiStylistClient,
   });
 
   /// Override for tests; when omitted a brand-new [GoRouter] is built (via
@@ -152,6 +155,10 @@ class StyloBuddyApp extends StatefulWidget {
   /// F25: opens the store listing for the update button. Defaults to
   /// [openStoreListing].
   final Future<bool> Function()? openStore;
+
+  /// F26 test-only seam: replaces the real HTTP AI client for signed-in users.
+  /// Production never sets it. Guests never get a client either way.
+  final AiStylistClient? aiStylistClient;
 
   @override
   State<StyloBuddyApp> createState() => _StyloBuddyAppState();
@@ -341,6 +348,15 @@ class _StyloBuddyAppState extends State<StyloBuddyApp> {
               create: (context) => StylistCubit(
                 context.read<WardrobeCubit>(),
                 analytics: _analytics,
+                // F26: guests never get an AI client; the flag is read at
+                // call time, so a late Remote Config load applies to the
+                // next generation.
+                aiClient: snapshot.data == null
+                    ? null
+                    : (widget.aiStylistClient ?? HttpAiStylistClient()),
+                aiAvailable: () =>
+                    snapshot.data != null &&
+                    _appConfig.state.config.aiStylistEnabled,
               ),
             ),
             BlocProvider(create: (_) => WardrobeBrowseCubit()),
