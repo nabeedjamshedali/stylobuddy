@@ -1,0 +1,215 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
+/// Thin path/converter helpers shared by every feature repository
+/// (architecture D1, D4; schema doc root). Every path this builds is
+/// scoped under `users/{uid}/...` — no helper here ever constructs an
+/// unscoped/top-level collection reference.
+///
+/// This class builds the mechanism only (paths, converters, the bootstrap
+/// transaction). No feature-specific repository is built here — a
+/// feature's own `repository/` file calls into this, never a `view`/
+/// `widgets` file (architecture boundary rule).
+class FirestoreService {
+  FirestoreService({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+
+  /// Serializes [runBootstrapIfNeeded] calls per `FirebaseFirestore`
+  /// instance/uid so a racing pair of callers against the same backing
+  /// store still only *commits* `seeded: true` once. Real Firestore's own
+  /// transaction retry already guarantees the commit is at most once
+  /// server-side in production — but it does this by retrying the whole
+  /// transaction handler (including [seedWriter]) on contention, not by
+  /// running [seedWriter] itself exactly once; see [runBootstrapIfNeeded]'s
+  /// docstring. This app-level lock makes the *at-most-one-commit*
+  /// guarantee hold in tests that use a non-atomic fake/in-memory Firestore
+  /// double (architecture D5), which has no retry-on-contention behavior of
+  /// its own to rely on.
+  ///
+  /// Keyed by `'${identityHashCode(_firestore)}/$uid'` rather than uid
+  /// alone, since two [FirestoreService] instances backed by different
+  /// [FirebaseFirestore] instances/doubles (e.g. in different tests) must
+  /// not share a lock. (`FirebaseFirestore.app`/`.databaseId` aren't used
+  /// for this because the fake double this app's tests inject doesn't
+  /// implement `.app`.) Each entry is removed once that attempt completes,
+  /// so this map never grows unbounded.
+  static final Map<String, Future<void>> _bootstrapLocks = {};
+
+  /// Test-only visibility into [_bootstrapLocks]'s size, so a test can
+  /// assert a settled attempt's entry was actually pruned rather than
+  /// inferring it indirectly.
+  @visibleForTesting
+  static int get bootstrapLockCount => _bootstrapLocks.length;
+
+  String _lockKey(String uid) => '${identityHashCode(_firestore)}/$uid';
+
+  CollectionReference<Map<String, dynamic>> usersCollection() =>
+      _firestore.collection('users');
+
+  DocumentReference<Map<String, dynamic>> userDoc(String uid) =>
+      usersCollection().doc(uid);
+
+  /// A `users/{uid}/{name}` collection, converted to/from [T]. Always
+  /// prefixed under the given [uid]'s document — never a top-level/
+  /// unscoped collection path (F14-A11).
+  ///
+  /// Per the schema doc's "duplicate id on document" convention: the
+  /// [fromFirestore] callback is handed the *real* Firestore document ID
+  /// (the source of truth, F14-A13) alongside the stored field map, so a
+  /// caller never has to trust a possibly-stale `id` field inside the
+  /// data. [toFirestore] is expected to still write that `id` field back
+  /// onto the map for query/export convenience (F14-A12) — this helper
+  /// does not add it automatically, since the field's name/shape is
+  /// feature-specific (`int` vs `String` ids per architecture D4); each
+  /// feature's own converter is responsible for including it.
+  CollectionReference<T> subcollection<T>(
+    String uid,
+    String name,
+    T Function(Map<String, dynamic> data, String id) fromFirestore,
+    Map<String, dynamic> Function(T value) toFirestore,
+  ) {
+    return userDoc(uid)
+        .collection(name)
+        .withConverter<T>(
+          fromFirestore: (snapshot, _) => fromFirestore(
+            snapshot.data() ?? const <String, dynamic>{},
+            snapshot.id,
+          ),
+          toFirestore: (value, _) => toFirestore(value),
+        );
+  }
+
+  /// Commits `seeded: true` at most once per [uid] (architecture D5),
+  /// guarded by `users/{uid}.seeded`. A missing field and an explicit
+  /// `false` are treated identically (F14-A15/A16); `true` never invokes
+  /// [seedWriter] again (F14-A17). If [seedWriter] throws, the transaction
+  /// aborts and `seeded` is left unset, so a later call gets a clean retry
+  /// rather than a permanently half-seeded user (F14-A19).
+  ///
+  /// IMPORTANT — this guarantees the **commit** happens at most once; it
+  /// does NOT guarantee [seedWriter] itself is only ever *invoked* once.
+  /// Real Firestore retries the whole transaction handler (re-running
+  /// [seedWriter]) when it loses a commit race on contention, so
+  /// [seedWriter] must perform all of its writes through the given [tx]
+  /// with no side effects outside the transaction (no network calls, no
+  /// writes via a different client/service) — it must be safe to run more
+  /// than once and simply discard its effects if the transaction is
+  /// retried or ultimately aborted.
+  ///
+  /// A transaction fails outright while the device is offline (no local
+  /// cache fallback for writes); callers (Task 5+) must handle that
+  /// failure path themselves — this method does not retry or swallow it.
+  ///
+  /// [extraFields] (Task 5/F18, additive — `null` by default, so no
+  /// existing F14/F15/F16/F17 call site's behavior changes): a value
+  /// merged directly into the **same** final `tx.set(userDoc, ...,
+  /// SetOptions(merge: true))` call this method already issues to commit
+  /// `seeded: true`, rather than being written by [seedWriter] as a
+  /// *second*, separate `tx.set`/`tx.update` against `userDoc` itself.
+  /// This exists because `fake_cloud_firestore` (confirmed empirically
+  /// while building F18) does not merge a later `set(..., merge: true)`
+  /// call against an *earlier* `set` to the very same document within one
+  /// transaction — the later call's map silently replaces the earlier
+  /// one's fields entirely, rather than deep-merging on top of it. Every
+  /// prior task's [seedWriter] only ever wrote to a `users/{uid}`
+  /// *subcollection* document (a different document reference from
+  /// `userDoc` itself), so this never surfaced before; F18's
+  /// `FirestoreProfileRepository` is the first caller whose seed data
+  /// belongs directly on `userDoc`, which collides with this method's own
+  /// trailing `seeded: true` commit unless folded into the same write.
+  ///
+  /// [extraFields] is handed this transaction's own `tx.get(userDoc)`
+  /// read (as a plain field map, `{}` if the document didn't exist yet) —
+  /// a caller MUST use this to only seed fields that are genuinely absent
+  /// from that snapshot, never a blind overwrite of every field it knows
+  /// about (F18 fix-round, Important #5). This matters for a real,
+  /// non-fake Firestore project: the device may be offline when
+  /// `runBootstrapIfNeeded` is first attempted (that attempt fails
+  /// outright, see above), the user may then edit their profile while
+  /// still offline (queued as a separate merge-set that commits once
+  /// connectivity returns), and a *later* bootstrap retry/relaunch must
+  /// not stomp that edit back to a seed default just because it runs
+  /// after the edit's write landed. Seeding only the keys missing from
+  /// this transaction's own read (rather than from some earlier,
+  /// possibly-stale caller-held snapshot) is also what lets a real
+  /// Firestore transaction's retry-on-contention correctly re-exclude a
+  /// field the instant a concurrent write makes it visible to a retried
+  /// read.
+  Future<void> runBootstrapIfNeeded(
+    String uid,
+    Future<void> Function(
+      Transaction tx,
+      DocumentReference<Map<String, dynamic>> userDoc,
+    )
+    seedWriter, {
+    Map<String, dynamic> Function(Map<String, dynamic> existingData)?
+    extraFields,
+  }) {
+    final key = _lockKey(uid);
+    final previous = _bootstrapLocks[key] ?? Future<void>.value();
+    final gate = previous
+        .catchError((_) {})
+        .then((_) => _runBootstrap(uid, seedWriter, extraFields));
+    final stored = gate.catchError((_) {});
+    _bootstrapLocks[key] = stored;
+    // Prune once this attempt settles (success or failure) so a uid that
+    // will never be retried doesn't leave a permanent entry behind. Only
+    // remove the entry if it's still *this* attempt's future — a
+    // genuinely-concurrent racing call may already have chained its own
+    // future in behind `stored` (replacing the map entry) before this
+    // runs, and that newer entry must not be clobbered.
+    unawaited(
+      stored.whenComplete(() {
+        if (identical(_bootstrapLocks[key], stored)) {
+          _bootstrapLocks.remove(key);
+        }
+      }),
+    );
+    return gate;
+  }
+
+  Future<void> _runBootstrap(
+    String uid,
+    Future<void> Function(
+      Transaction tx,
+      DocumentReference<Map<String, dynamic>> userDoc,
+    )
+    seedWriter,
+    Map<String, dynamic> Function(Map<String, dynamic> existingData)?
+    extraFields,
+  ) {
+    final doc = userDoc(uid);
+    return _firestore.runTransaction((tx) async {
+      final snapshot = await tx.get(doc);
+      final existingData = snapshot.data() ?? const <String, dynamic>{};
+      final seeded = (existingData['seeded'] as bool?) ?? false;
+      if (seeded) return;
+      await seedWriter(tx, doc);
+      // extraFields is merged into this one write (see its doc comment on
+      // runBootstrapIfNeeded) rather than seedWriter issuing its own,
+      // second tx.set/update against the same userDoc. It is handed this
+      // transaction's own read so it can seed only fields genuinely
+      // absent from the document, never stomp a field that's already
+      // present (Important #5).
+      //
+      // `existingData` is spread explicitly here (not left to
+      // `SetOptions(merge: true)` alone) because `fake_cloud_firestore`
+      // (confirmed empirically while building this fix round) does not
+      // merge a `tx.set(..., merge: true)` call against the document's
+      // state from *before* the transaction started — only against other
+      // writes made earlier in the same transaction. Spreading
+      // `existingData` first makes the final write correct against both
+      // the fake (explicit full map) and real Firestore (where this is a
+      // harmless no-op superset of what `merge: true` would already do).
+      tx.set(doc, {
+        ...existingData,
+        ...?extraFields?.call(existingData),
+        'seeded': true,
+      }, SetOptions(merge: true));
+    });
+  }
+}
