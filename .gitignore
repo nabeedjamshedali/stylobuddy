@@ -1,0 +1,8 @@
+# Local tooling and OS files
+.claude/
+desktop.ini
+.DS_Store
+
+# Model weights and datasets are not stored in git
+*.pth
+model/data/
