@@ -6,12 +6,18 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+from app.core.config import config as app_config
 from app.core.database import Base
 from app.models import User, RefreshToken, ClothingItem, UserWardrobe, OutfitRecommendation  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Source the DB URL from .env (via app.core.config) instead of the
+# hardcoded sqlalchemy.url in alembic.ini, so credentials live in one
+# place and never get committed to the ini file.
+config.set_main_option("sqlalchemy.url", app_config.DATABASE_URL)
 
 target_metadata = Base.metadata
 

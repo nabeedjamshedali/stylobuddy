@@ -3,11 +3,15 @@ from pydantic import BaseModel, Field
 
 class RecommendationRequest(BaseModel):
     item_ids: list[str] = Field(
-        ..., min_length=1, max_length=30,
+        default=[], min_length=0, max_length=30,
         description="IDs of wardrobe items to consider"
     )
     occasion: str | None = Field(None, description="e.g. office, casual, party")
     preferences: str | None = Field(None, description="Free-text style preferences")
+    # Set when user uploads a photo without selecting catalog items.
+    # 'uppers' → user uploaded a top → suggest lowers from catalog.
+    # 'lowers' → user uploaded a bottom → suggest uppers from catalog.
+    photo_type: str | None = Field(None, description="'uppers' or 'lowers'")
 
 
 class OutfitItem(BaseModel):
@@ -23,7 +27,7 @@ class OutfitCombination(BaseModel):
     items: list[OutfitItem]
     style_description: str
     occasion_fit: list[str]
-    confidence_score: float = Field(ge=0.0, le=1.0)
+    confidence_score: float = 0.7
 
 
 class RecommendationResponse(BaseModel):
@@ -40,6 +44,11 @@ class RecommendationResponse(BaseModel):
     is_saved: bool = False
     # 'lowers' | 'uppers' | null — tells the frontend if this was auto-suggest mode
     suggest_mode: str | None = None
+    # ── Pipeline metadata ──
+    # 'online' (GPT used) | 'offline' (TACN only) | 'hybrid' (TACN pre-filtered + GPT)
+    pipeline_mode: str = "online"
+    # Whether TACN pre-filtering was applied before sending to LLM
+    tacn_prefiltered: bool = False
 
 
 class SavedLookResponse(BaseModel):

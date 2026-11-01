@@ -6,6 +6,8 @@ import {
   fetchCategories,
   fetchCatalogItems,
   generateOutfit,
+  saveLook,
+  isLookSaved,
   type CatalogItem,
   type GenerateOutfitResponse,
 } from '@/lib/api'
@@ -114,13 +116,31 @@ export default function WorkspacePage() {
 
   // ── Photo upload ──────────────────────────────────────────────────────────────
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoType, setPhotoType] = useState<'uppers' | 'lowers' | null>(null)
+  const [showPhotoTypeModal, setShowPhotoTypeModal] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Generation ────────────────────────────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false)
-  const [result, setResult] = useState<GenerateOutfitResponse | null>(null)
+  const [result, setResult] = useState<GenerateOutfitResponse | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const cached = sessionStorage.getItem('workspace_result')
+      return cached ? JSON.parse(cached) : null
+    } catch { return null }
+  })
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [isSaved, setIsSaved] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const cached = sessionStorage.getItem('workspace_result')
+      if (!cached) return false
+      const r: GenerateOutfitResponse = JSON.parse(cached)
+      return isLookSaved(r.recommendation_id)
+    } catch { return false }
+  })
+  const [toast, setToast] = useState<string | null>(null)
 
   // ── Computed ──────────────────────────────────────────────────────────────────
   const totalSelected = selectedUppers.size + selectedLowers.size
@@ -131,7 +151,9 @@ export default function WorkspacePage() {
     )
   }, [totalSelected])
 
-  const canGenerate = totalSelected > 0 && !isGenerating
+  // Can generate if: catalog items selected, OR photo uploaded with type chosen
+  const photoOnlyMode = photoPreview !== null && totalSelected === 0 && photoType !== null
+  const canGenerate = (totalSelected > 0 || photoOnlyMode) && !isGenerating
 
   const filteredUppers =
     upperFilter === 'All' ? uppers : uppers.filter((i) => i.category === upperFilter)
@@ -173,26 +195,86 @@ export default function WorkspacePage() {
   const removePhoto = (e: React.MouseEvent) => {
     e.stopPropagation()
     setPhotoPreview(null)
+    setPhotoType(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleGenerate = async () => {
-    if (!canGenerate) return
+  const handlePhotoTypeSelect = (type: 'uppers' | 'lowers') => {
+    setPhotoType(type)
+    setShowPhotoTypeModal(false)
+    fileInputRef.current?.click()
+  }
+
+  // ── Toast helper ──────────────────────────────────────────────────────────────
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2500)
+  }
+
+  // ── Core generation (accepts explicit IDs so Redo can bypass selection state) ─
+  const _doGenerate = async (ids: string[], pt?: 'uppers' | 'lowers') => {
     setIsGenerating(true)
     setResult(null)
     setGenerateError(null)
-
-    const allSelectedIds = [...Array.from(selectedUppers), ...Array.from(selectedLowers)]
-
     try {
-      const data = await generateOutfit(allSelectedIds)
+      const data = await generateOutfit(ids, { photoType: pt })
       setResult(data)
+      setIsSaved(isLookSaved(data.recommendation_id))
+      sessionStorage.setItem('workspace_result', JSON.stringify(data))
+      sessionStorage.setItem('workspace_last_ids', JSON.stringify(ids))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong'
       setGenerateError(msg)
       console.error('[generate]', err)
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const handleGenerate = () => {
+    if (!canGenerate) return
+    const ids = [...Array.from(selectedUppers), ...Array.from(selectedLowers)]
+    _doGenerate(ids, photoOnlyMode ? photoType! : undefined)
+  }
+
+  const handleRedo = () => {
+    if (canGenerate) {
+      handleGenerate()
+      return
+    }
+    // No items selected (e.g. navigated back) — re-use last generation's IDs
+    try {
+      const stored = sessionStorage.getItem('workspace_last_ids')
+      if (stored) {
+        const ids: string[] = JSON.parse(stored)
+        _doGenerate(ids)
+      }
+    } catch { /* ignore */ }
+  }
+
+  const handleShare = async () => {
+    if (!result) return
+    const shareText = `${result.aesthetic}\n\n${result.description}\n\nStyled by StyLoBuddy`
+    const shareData = {
+      title: `${result.aesthetic} — StyLoBuddy`,
+      text: result.description,
+      url: window.location.href,
+    }
+    try {
+      if (typeof navigator.share === 'function' && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData)
+      } else {
+        await navigator.clipboard.writeText(shareText)
+        showToast('Copied to clipboard')
+      }
+    } catch {
+      // User cancelled native share — fall back to clipboard
+      try {
+        await navigator.clipboard.writeText(shareText)
+        showToast('Copied to clipboard')
+      } catch {
+        showToast('Could not share — try copying manually')
+      }
     }
   }
 
@@ -268,7 +350,7 @@ export default function WorkspacePage() {
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
-              onClick={() => !photoPreview && fileInputRef.current?.click()}
+              onClick={() => { if (!photoPreview) setShowPhotoTypeModal(true) }}
               className={`relative rounded-2xl border-2 border-dashed transition-all duration-[400ms] ease-editorial overflow-hidden ${
                 photoPreview
                   ? 'border-secondary/25 bg-surface-container h-[108px]'
@@ -287,7 +369,12 @@ export default function WorkspacePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-headline font-semibold text-on-surface text-sm">Photo ready</p>
-                    <p className="font-label text-outline text-xs mt-0.5">Outfit will be tailored to your silhouette</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-2.5 py-0.5 bg-secondary/15 text-secondary rounded-full font-label text-[0.5625rem] uppercase tracking-widest">
+                        {photoType === 'uppers' ? 'Top' : 'Bottom'}
+                      </span>
+                      <span className="font-label text-outline text-[0.625rem]">Outfit will be tailored to your silhouette</span>
+                    </div>
                   </div>
                   <button onClick={removePhoto} className="flex-none w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container-high transition-all duration-[400ms]">
                     <span className="material-symbols-outlined text-[1rem]">close</span>
@@ -544,12 +631,19 @@ export default function WorkspacePage() {
                     </p>
 
                     {suggestLabel ? (
-                      /* Auto-suggest: show all 3 matches as separate rows */
+                      /* Auto-suggest: show all matches as separate rows */
                       result.combinations.map((combo, idx) => {
-                        /* The catalog-suggested item is the one NOT in the user's selected IDs */
-                        const suggestedItem = combo.items.find(
-                          (oi) => !([...selectedUppers, ...selectedLowers].includes(oi.item_id))
-                        ) ?? combo.items[combo.items.length - 1]
+                        /*
+                         * Find the catalog-suggested item by role:
+                         * - suggest_mode === 'lowers' → we suggested bottoms, so find role 'bottom'
+                         * - suggest_mode === 'uppers' → we suggested tops, so find role 'top'
+                         * Fall back to the last item if no role match.
+                         * Never use selected-IDs check — those Sets are empty after navigation.
+                         */
+                        const suggestedRole = result.suggest_mode === 'lowers' ? 'bottom' : 'top'
+                        const suggestedItem =
+                          combo.items.find((oi) => oi.role_in_outfit === suggestedRole) ??
+                          combo.items[combo.items.length - 1]
                         return (
                           <div
                             key={combo.outfit_name + idx}
@@ -579,11 +673,22 @@ export default function WorkspacePage() {
                         )
                       })
                     ) : (
-                      /* Normal mode: grid of items from the first combo */
-                      firstCombo && (
-                        <>
+                      /* Normal mode: show ALL combinations, each as a labeled outfit card */
+                      result.combinations.map((combo, idx) => (
+                        <div key={combo.outfit_name + idx} className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-[0.625rem]">
+                              {idx + 1}
+                            </span>
+                            <p className="font-headline text-[0.75rem] text-on-surface font-semibold">
+                              {combo.outfit_name}
+                            </p>
+                            <span className="ml-auto font-label text-[0.5625rem] text-outline">
+                              {Math.round(combo.confidence_score * 100)}% match
+                            </span>
+                          </div>
                           <div className="grid grid-cols-3 gap-2">
-                            {firstCombo.items.map((oi) => (
+                            {combo.items.map((oi) => (
                               <div key={oi.item_id} className="flex flex-col gap-1">
                                 <div className="aspect-[3/4] rounded-lg overflow-hidden bg-surface-container">
                                   <img
@@ -598,13 +703,16 @@ export default function WorkspacePage() {
                               </div>
                             ))}
                           </div>
-                          {firstCombo.style_description && (
-                            <p className="font-label text-[0.625rem] text-outline/80 leading-relaxed mt-2">
-                              {firstCombo.style_description}
+                          {combo.style_description && (
+                            <p className="font-label text-[0.5625rem] text-outline/80 leading-relaxed">
+                              {combo.style_description}
                             </p>
                           )}
-                        </>
-                      )
+                          {idx < result.combinations.length - 1 && (
+                            <hr className="border-outline/10 my-3" />
+                          )}
+                        </div>
+                      ))
                     )}
                   </div>
                 )}
@@ -650,17 +758,33 @@ export default function WorkspacePage() {
 
                 {/* Actions */}
                 <div className="space-y-2.5 pt-1">
-                  <button className="w-full flex items-center justify-center gap-2.5 py-3 bg-on-surface text-surface rounded-full font-headline uppercase tracking-[0.15rem] text-[0.6875rem] hover:bg-primary transition-all duration-[400ms] ease-editorial">
-                    <span className="material-symbols-outlined text-[0.875rem]" style={{ fontVariationSettings: "'FILL' 1" }}>bookmark</span>
-                    Save Look
+                  <button
+                    onClick={() => {
+                      if (result && !isSaved) {
+                        saveLook(result)
+                        setIsSaved(true)
+                      }
+                    }}
+                    disabled={isSaved}
+                    className={`w-full flex items-center justify-center gap-2.5 py-3 rounded-full font-headline uppercase tracking-[0.15rem] text-[0.6875rem] transition-all duration-[400ms] ease-editorial ${
+                      isSaved
+                        ? 'bg-secondary/20 text-secondary cursor-default'
+                        : 'bg-on-surface text-surface hover:bg-primary'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[0.875rem]" style={{ fontVariationSettings: isSaved ? "'FILL' 1" : "'FILL' 0" }}>bookmark</span>
+                    {isSaved ? 'Saved' : 'Save Look'}
                   </button>
                   <div className="flex gap-2">
-                    <button className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-outline-variant/40 rounded-full font-headline uppercase tracking-[0.1rem] text-[0.625rem] text-on-surface-variant hover:border-outline hover:text-on-surface transition-all duration-[400ms]">
+                    <button
+                      onClick={handleShare}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-outline-variant/40 rounded-full font-headline uppercase tracking-[0.1rem] text-[0.625rem] text-on-surface-variant hover:border-outline hover:text-on-surface transition-all duration-[400ms]"
+                    >
                       <span className="material-symbols-outlined text-[0.875rem]">share</span>
                       Share
                     </button>
                     <button
-                      onClick={handleGenerate}
+                      onClick={handleRedo}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-outline-variant/40 rounded-full font-headline uppercase tracking-[0.1rem] text-[0.625rem] text-on-surface-variant hover:border-outline hover:text-on-surface transition-all duration-[400ms]"
                     >
                       <span className="material-symbols-outlined text-[0.875rem]">refresh</span>
@@ -673,6 +797,80 @@ export default function WorkspacePage() {
           )}
         </div>
       </div>
+
+      {/* ── Toast notification ──────────────────────────────────────────── */}
+      {toast && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-on-surface text-surface rounded-full font-label text-[0.6875rem] uppercase tracking-widest shadow-xl flex items-center gap-2 pointer-events-none animate-fade-in">
+          <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          {toast}
+        </div>
+      )}
+
+      {/* ── Photo type modal ──────────────────────────────────────────────── */}
+      {showPhotoTypeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowPhotoTypeModal(false)}
+        >
+          <div
+            className="bg-surface rounded-3xl shadow-2xl w-[340px] p-8 flex flex-col gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="text-center space-y-1.5">
+              <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
+                <span className="material-symbols-outlined text-2xl text-on-surface-variant">upload</span>
+              </div>
+              <h3 className="font-headline text-lg font-light text-on-surface tracking-tight">
+                What are you uploading?
+              </h3>
+              <p className="font-label text-[0.6875rem] text-outline leading-relaxed">
+                We'll suggest the best matching pieces from the catalog.
+              </p>
+            </div>
+
+            {/* Options */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handlePhotoTypeSelect('uppers')}
+                className="flex items-center gap-4 px-5 py-4 rounded-2xl border border-outline-variant/40 hover:border-on-surface hover:bg-surface-container transition-all duration-[400ms] ease-editorial group text-left"
+              >
+                <div className="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center flex-none group-hover:bg-surface-container-high transition-all duration-[400ms]">
+                  <span className="material-symbols-outlined text-on-surface-variant text-xl">checkroom</span>
+                </div>
+                <div>
+                  <p className="font-headline text-sm font-semibold text-on-surface">A Top</p>
+                  <p className="font-label text-[0.625rem] text-outline uppercase tracking-widest mt-0.5">
+                    Shirt · T-Shirt · Knitwear · Jacket
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handlePhotoTypeSelect('lowers')}
+                className="flex items-center gap-4 px-5 py-4 rounded-2xl border border-outline-variant/40 hover:border-on-surface hover:bg-surface-container transition-all duration-[400ms] ease-editorial group text-left"
+              >
+                <div className="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center flex-none group-hover:bg-surface-container-high transition-all duration-[400ms]">
+                  <span className="material-symbols-outlined text-on-surface-variant text-xl">airline_seat_legroom_normal</span>
+                </div>
+                <div>
+                  <p className="font-headline text-sm font-semibold text-on-surface">A Bottom</p>
+                  <p className="font-label text-[0.625rem] text-outline uppercase tracking-widest mt-0.5">
+                    Jeans · Trousers · Chinos · Shorts
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowPhotoTypeModal(false)}
+              className="font-label text-[0.625rem] text-outline uppercase tracking-widest text-center hover:text-on-surface transition-colors duration-[400ms]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

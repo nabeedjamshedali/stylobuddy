@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -19,6 +20,7 @@ from app.routes.recommendation_routes import router as recommendation_router
 from app.routes.upload_routes import router as upload_router
 from app.routes.saved_routes import router as saved_router
 from app.routes.explore_routes import router as explore_router
+from app.services.apify_service import warm_cache
 
 logger = get_logger("main")
 
@@ -27,6 +29,8 @@ logger = get_logger("main")
 async def lifespan(app: FastAPI):
     logger.info("Starting %s...", config.APP_NAME)
     await init_db()
+    # Pre-warm Apify Pinterest cache in the background (non-blocking)
+    asyncio.create_task(warm_cache())
     yield
     logger.info("Shutting down %s...", config.APP_NAME)
     await close_db()

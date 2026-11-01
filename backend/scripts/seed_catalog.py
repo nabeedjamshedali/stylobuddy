@@ -1,10 +1,10 @@
 """
-Seed the clothing catalog with dummy data covering all four main categories.
+Seed the clothing catalog with dummy data covering the two main categories.
 
 What this script does
 ─────────────────────
-1. Upserts the 4 top-level CatalogCategory rows.
-2. Upserts all CatalogSubcategory rows (17 subcategories total).
+1. Upserts the 2 top-level CatalogCategory rows.
+2. Upserts all CatalogSubcategory rows (6 subcategories total).
 3. For each ClothingItem entry:
    a. Downloads the image from its source URL.
    b. Uploads it to the Supabase Storage "clothing-catalog" bucket.
@@ -14,10 +14,8 @@ What this script does
 
 Category structure
 ──────────────────
-  Uppers   → T-Shirts · Shirts · Knitwear · Jackets · Hoodies
-  Lowers   → Jeans · Trousers · Chinos · Shorts
-  Shoes    → Sneakers · Boots · Loafers · Formal Shoes · Sandals
-  Watches  → Casual · Dress · Sport
+  Uppers   → T-Shirts · Shirts · Knitwear
+  Lowers   → Jeans · Trousers · Chinos
 
 Usage
 ─────
@@ -66,18 +64,6 @@ CATEGORIES: list[dict] = [
         # Representative image — Straight Leg Denim
         "image_url": "https://lh3.googleusercontent.com/aida-public/AB6AXuDS8_1Q6adlNGkunic8xUPDpVSbhoiNThDV6X1CWrFa9C7jk9QC1oY_XkVKmARa-h_GxdMMeosyhAAvh0jJz1os0F1TaiTsNa75GnU7zFqD7u7TexkPWqDSPkHUAkIEnlBFN4O3sR8dUA-p5GMYTYeC4dWHSuMh7djsuDGGX26U7Z-UDT1zrJOzs5Lqt9L2esE4miD3Kso6gIcjWjPuNLFgC9m5Ap-3LAN_u3bK9HtPw52opHHIj0HzNhFC-vHUV1dSAKYR7riWUsvJ",
     },
-    {
-        "slug": "shoes", "name": "Shoes", "sort_order": 3,
-        "description": "Sneakers, boots, loafers and more",
-        # Representative image — White Canvas Low-Tops
-        "image_url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&h=800&fit=crop&q=80",
-    },
-    {
-        "slug": "watches", "name": "Wrist Watch", "sort_order": 4,
-        "description": "Casual, dress and sport timepieces",
-        # Representative image — Slim Silver Dress Watch
-        "image_url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=800&fit=crop&q=80",
-    },
 ]
 
 SUBCATEGORIES: dict[str, list[dict]] = {
@@ -88,10 +74,6 @@ SUBCATEGORIES: dict[str, list[dict]] = {
          "image_url": "https://lh3.googleusercontent.com/aida-public/AB6AXuDfv6avVvhh1tpVlUxrVmLvkAvEmTGD3wbCjAzQC0dsEF86BVTUto20SCsPc4jETxFsVL2B_hDNDa0HnCz_HkcXGq9xw0ijBF29xNBX3aFOM5HaqtoUdRQuAZs58z_HInWKknXXd2QXK8c1Gc3aI0D0b2PslCE0NYNgq7as2yu6yLVj1P4M9F97xRjwuliXeRPuGd0rhxzXaedhHWL5bL0ZNr-cJQFr3cdQeKWq4xpflf6ph7velEDBbnR24Ltkgt0Kz4-0TKEZqv1d"},
         {"slug": "knitwear", "name": "Knitwear", "sort_order": 3,
          "image_url": "https://lh3.googleusercontent.com/aida-public/AB6AXuCQevpDfeOhkaOF7qff6q3ZcNCIPEpMAhgBHCINe_00ApoCnLnu_2Va6vT_gjSZqCUL7F7NupQ5WWeewBjguersBvRrdwpW1Mok40vc3EGNWlRnUQinVABpkWdWoRYA5-WEf_39D--SZkpmXCdnUBuMKnetJIedMaDc7HRVIj19ckY95jHoDNtu0f-3Hy8BBaukz5OUdpDNo426uAn2HNQh9mBb86cPlxP3KMF-D0VUtkdpneS1zHMslO9Wh3MgedNJprDZlQHfOmWN"},
-        {"slug": "jackets", "name": "Jackets", "sort_order": 4,
-         "image_url": "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&h=800&fit=crop&q=80"},
-        {"slug": "hoodies", "name": "Hoodies", "sort_order": 5,
-         "image_url": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=800&fit=crop&q=80"},
     ],
     "lowers": [
         {"slug": "jeans", "name": "Jeans", "sort_order": 1,
@@ -100,28 +82,6 @@ SUBCATEGORIES: dict[str, list[dict]] = {
          "image_url": "https://lh3.googleusercontent.com/aida-public/AB6AXuA1vjQCNS8wOTQFSqkuOLMYHED5_pJGzm0QMLAuSSa_vNXjRnEgiMhKztwh5xdb4iMuQVp6bDXJDVXewMnMIZpKY4F-hnijfB8afF3EiJzx94lLdtmhSZN0nzij1dCrWL43Pevx2g_6D7cNg0vnbzrvF8MVDfUk6mbIp_L_Vk6vLsiZTRuPYuiVZsKwzBdI431F0iWEo_6YNhyLywx5ZCud-Bf7X7Q3l9t9Gv-ujwZQBoPULg9OF034wlmE-EmS4fx70cv71aUvGTdD"},
         {"slug": "chinos", "name": "Chinos", "sort_order": 3,
          "image_url": "https://lh3.googleusercontent.com/aida-public/AB6AXuCvoU6IY_XC238MVjMw68Z-bhdfIKy5fIplVcAJDUKrn4Tt5E7IHnSQ6H16uOSfPXpqpdg8am4H9llT92GVCiKMnHhPu9LP-cwfhcZHklluKJe7C1JaJpgNRAcoY_QynJ-PCEaGN2cAnvoKbvfCK4a8Hlvsv2UCcOz6VXn0stdM6z8JvDk7C8vsfyUnnNyNLq2r2rJ_Lr2QMDTSrgRE97yu7WhC_53Pt5FzpvAZcUu13lKpyqjR-_AyzL_by6uXsrZ-hfsR8j6j6Ths"},
-        {"slug": "shorts", "name": "Shorts", "sort_order": 4,
-         "image_url": "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=600&h=800&fit=crop&q=80"},
-    ],
-    "shoes": [
-        {"slug": "sneakers", "name": "Sneakers", "sort_order": 1,
-         "image_url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&h=800&fit=crop&q=80"},
-        {"slug": "boots", "name": "Boots", "sort_order": 2,
-         "image_url": "https://images.unsplash.com/photo-1605812860427-4024433a70fd?w=600&h=800&fit=crop&q=80"},
-        {"slug": "loafers", "name": "Loafers", "sort_order": 3,
-         "image_url": "https://images.unsplash.com/photo-1626947346165-4c2288dadc2a?w=600&h=800&fit=crop&q=80"},
-        {"slug": "formal-shoes", "name": "Formal Shoes", "sort_order": 4,
-         "image_url": "https://images.unsplash.com/photo-1533867617858-e7b97e060509?w=600&h=800&fit=crop&q=80"},
-        {"slug": "sandals", "name": "Sandals", "sort_order": 5,
-         "image_url": "https://images.unsplash.com/photo-1603487742131-4160ec999306?w=600&h=800&fit=crop&q=80"},
-    ],
-    "watches": [
-        {"slug": "casual-watches", "name": "Casual", "sort_order": 1,
-         "image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=800&fit=crop&q=80"},
-        {"slug": "dress-watches", "name": "Dress", "sort_order": 2,
-         "image_url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=800&fit=crop&q=80"},
-        {"slug": "sport-watches", "name": "Sport", "sort_order": 3,
-         "image_url": "https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=600&h=800&fit=crop&q=80"},
     ],
 }
 
@@ -132,8 +92,8 @@ SUBCATEGORIES: dict[str, list[dict]] = {
 #   name, material, color, tags, filename, url
 #
 # Image URLs are sourced from:
-#   • lh3.googleusercontent.com  — the original 9 items (preserved exactly)
-#   • images.unsplash.com        — free stock photos for the new items
+#   • lh3.googleusercontent.com  — the original items (preserved exactly)
+#   • images.unsplash.com        — free stock photos for the newer items
 #
 # All images are re-uploaded to Supabase Storage on first run so the app
 # never depends on third-party URLs at runtime.
@@ -174,12 +134,12 @@ CATALOG_ITEMS: list[dict] = [
         "url": "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=600&h=800&fit=crop&q=80",
     },
     {
-        "name": "Navy Pocket Tee",
+        "name": "Striped Navy Tee",
         "category_slug": "uppers", "subcategory_slug": "t-shirts",
-        "material": "Slub Cotton", "color": "Navy",
+        "material": "Cotton Jersey", "color": "Navy Stripe",
         "tags": ["casual", "classic", "weekend"],
-        "filename": "navy_pocket_tee.jpg",
-        "url": "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=600&h=800&fit=crop&q=80",
+        "filename": "striped_navy_tee.jpg",
+        "url": "https://teetall.pk/cdn/shop/files/1680833966d4227976a7622a1db4ced952bede4c47_thumbnail_750x_515f1e94-d41b-4449-8226-91e27a2c1078.jpg?crop=center&height=999&v=1685321527&width=750",
     },
 
     # ── Uppers / Shirts ───────────────────────────────────────────────────────
@@ -192,20 +152,36 @@ CATALOG_ITEMS: list[dict] = [
         "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuDfv6avVvhh1tpVlUxrVmLvkAvEmTGD3wbCjAzQC0dsEF86BVTUto20SCsPc4jETxFsVL2B_hDNDa0HnCz_HkcXGq9xw0ijBF29xNBX3aFOM5HaqtoUdRQuAZs58z_HInWKknXXd2QXK8c1Gc3aI0D0b2PslCE0NYNgq7as2yu6yLVj1P4M9F97xRjwuliXeRPuGd0rhxzXaedhHWL5bL0ZNr-cJQFr3cdQeKWq4xpflf6ph7velEDBbnR24Ltkgt0Kz4-0TKEZqv1d",
     },
     {
-        "name": "Oxford Button-Down",
+        "name": "Classic White Formal Shirt",
         "category_slug": "uppers", "subcategory_slug": "shirts",
-        "material": "Oxford Cloth", "color": "Light Blue",
-        "tags": ["smart-casual", "workwear", "classic"],
-        "filename": "oxford_button_down.jpg",
-        "url": "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=600&h=800&fit=crop&q=80",
+        "material": "Cotton Poplin", "color": "White",
+        "tags": ["formal", "office", "classic"],
+        "filename": "classic_white_formal_shirt.jpg",
+        "url": "https://discountstore.pk/cdn/shop/files/1_9cc90884-c3ff-432e-887d-f2ba7a37dde0.webp?v=1732890801",
     },
     {
-        "name": "Flannel Plaid Shirt",
+        "name": "Embroidered Dress Shirt",
         "category_slug": "uppers", "subcategory_slug": "shirts",
-        "material": "Brushed Flannel", "color": "Red/Navy Plaid",
-        "tags": ["casual", "autumn", "rugged"],
-        "filename": "flannel_plaid_shirt.jpg",
-        "url": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&h=800&fit=crop&q=80",
+        "material": "100% Cotton", "color": "Light Blue",
+        "tags": ["formal", "smart-casual", "premium"],
+        "filename": "embroidered_dress_shirt.jpg",
+        "url": "https://image.made-in-china.com/155f0j00ZorbILNqMckn/Formal-Long-Sleeve-Shirt-Man-Shirt-Eco-Friendly-Fabric-High-Quality-Custom-Embroidered-Dress-Shirts-OEM-100-Cotton.webp",
+    },
+    {
+        "name": "Slim Fit Check Shirt",
+        "category_slug": "uppers", "subcategory_slug": "shirts",
+        "material": "Cotton Blend", "color": "Blue Check",
+        "tags": ["smart-casual", "workwear", "slim-fit"],
+        "filename": "slim_fit_check_shirt.jpg",
+        "url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTj5U8JBez88qX6uQLoTz6Zt8unBwuPlSOirW6sMuI7tA&s",
+    },
+    {
+        "name": "Cotton Chambray Shirt",
+        "category_slug": "uppers", "subcategory_slug": "shirts",
+        "material": "Cotton Chambray", "color": "Forest Green",
+        "tags": ["casual", "earthy", "weekend"],
+        "filename": "cotton_chambray_shirt.jpg",
+        "url": "https://saimfashion.com/cdn/shop/files/Cotton_Chambray_Shirt_Forest_Green.webp?v=1770966625&width=1600",
     },
 
     # ── Uppers / Knitwear ─────────────────────────────────────────────────────
@@ -218,40 +194,36 @@ CATALOG_ITEMS: list[dict] = [
         "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuCQevpDfeOhkaOF7qff6q3ZcNCIPEpMAhgBHCINe_00ApoCnLnu_2Va6vT_gjSZqCUL7F7NupQ5WWeewBjguersBvRrdwpW1Mok40vc3EGNWlRnUQinVABpkWdWoRYA5-WEf_39D--SZkpmXCdnUBuMKnetJIedMaDc7HRVIj19ckY95jHoDNtu0f-3Hy8BBaukz5OUdpDNo426uAn2HNQh9mBb86cPlxP3KMF-D0VUtkdpneS1zHMslO9Wh3MgedNJprDZlQHfOmWN",
     },
     {
-        "name": "Chunky Ribbed Sweater",
+        "name": "Teviot Green Knit",
         "category_slug": "uppers", "subcategory_slug": "knitwear",
-        "material": "Wool Blend", "color": "Oatmeal",
-        "tags": ["cosy", "winter", "oversized"],
-        "filename": "chunky_ribbed_sweater.jpg",
-        "url": "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Uppers / Jackets ──────────────────────────────────────────────────────
-    {
-        "name": "Leather Biker Jacket",
-        "category_slug": "uppers", "subcategory_slug": "jackets",
-        "material": "Genuine Leather", "color": "Black",
-        "tags": ["edgy", "streetwear", "statement"],
-        "filename": "leather_biker_jacket.jpg",
-        "url": "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&h=800&fit=crop&q=80",
+        "material": "Lambswool", "color": "Forest Green",
+        "tags": ["heritage", "autumn", "classic"],
+        "filename": "teviot_green_knit.jpg",
+        "url": "https://www.kestin.co/cdn/shop/files/Teviot_Green.jpg?v=1776249832&width=832",
     },
     {
-        "name": "Denim Trucker Jacket",
-        "category_slug": "uppers", "subcategory_slug": "jackets",
-        "material": "12oz Denim", "color": "Mid Wash Blue",
-        "tags": ["casual", "layering", "american-classic"],
-        "filename": "denim_trucker_jacket.jpg",
-        "url": "https://images.unsplash.com/photo-1611312449408-fcece27cdbb7?w=600&h=800&fit=crop&q=80",
+        "name": "Cable Knit Pullover",
+        "category_slug": "uppers", "subcategory_slug": "knitwear",
+        "material": "Wool Blend", "color": "Navy",
+        "tags": ["cosy", "winter", "textured"],
+        "filename": "cable_knit_pullover.jpg",
+        "url": "https://www.kestin.co/cdn/shop/files/Knit2_1.jpg?v=1775141335&width=832",
     },
-
-    # ── Uppers / Hoodies ──────────────────────────────────────────────────────
     {
-        "name": "Essential Pullover Hoodie",
-        "category_slug": "uppers", "subcategory_slug": "hoodies",
-        "material": "Heavyweight Fleece", "color": "Stone Grey",
-        "tags": ["streetwear", "casual", "comfort"],
-        "filename": "essential_pullover_hoodie.jpg",
-        "url": "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=800&fit=crop&q=80",
+        "name": "Shetland Crew Neck",
+        "category_slug": "uppers", "subcategory_slug": "knitwear",
+        "material": "Shetland Wool", "color": "Oatmeal",
+        "tags": ["heritage", "casual", "layering"],
+        "filename": "shetland_crew_neck.jpg",
+        "url": "https://www.kestin.co/cdn/shop/files/SHETLAND_01.jpg?v=1744833434&width=832",
+    },
+    {
+        "name": "Shetland Rust Sweater",
+        "category_slug": "uppers", "subcategory_slug": "knitwear",
+        "material": "Shetland Wool", "color": "Rust",
+        "tags": ["heritage", "autumn", "warm"],
+        "filename": "shetland_rust_sweater.jpg",
+        "url": "https://www.kestin.co/cdn/shop/files/SHETLAND_09.jpg?v=1744979188&width=832",
     },
 
     # ── Lowers / Jeans ────────────────────────────────────────────────────────
@@ -264,20 +236,36 @@ CATALOG_ITEMS: list[dict] = [
         "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuDS8_1Q6adlNGkunic8xUPDpVSbhoiNThDV6X1CWrFa9C7jk9QC1oY_XkVKmARa-h_GxdMMeosyhAAvh0jJz1os0F1TaiTsNa75GnU7zFqD7u7TexkPWqDSPkHUAkIEnlBFN4O3sR8dUA-p5GMYTYeC4dWHSuMh7djsuDGGX26U7Z-UDT1zrJOzs5Lqt9L2esE4miD3Kso6gIcjWjPuNLFgC9m5Ap-3LAN_u3bK9HtPw52opHHIj0HzNhFC-vHUV1dSAKYR7riWUsvJ",
     },
     {
-        "name": "Indigo Selvedge Jeans",
+        "name": "Slim Fit Dark Wash Jeans",
         "category_slug": "lowers", "subcategory_slug": "jeans",
-        "material": "Raw Denim", "color": "Deep Indigo",
-        "tags": ["premium", "heritage", "tapered"],
-        "filename": "indigo_selvedge_jeans.jpg",
-        "url": "https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?w=600&h=800&fit=crop&q=80",
+        "material": "Stretch Denim", "color": "Dark Blue",
+        "tags": ["slim-fit", "versatile", "modern"],
+        "filename": "slim_fit_dark_wash_jeans.jpg",
+        "url": "https://www.prexstore.com/cdn/shop/files/IMG_3874.jpg?v=1735808713&width=5000",
     },
     {
-        "name": "Slim Fit Black Jeans",
+        "name": "Classic Blue Straight Jeans",
         "category_slug": "lowers", "subcategory_slug": "jeans",
-        "material": "Stretch Denim", "color": "Black",
-        "tags": ["versatile", "night-out", "smart-casual"],
-        "filename": "slim_fit_black_jeans.jpg",
-        "url": "https://images.unsplash.com/photo-1604176354204-9268737828e4?w=600&h=800&fit=crop&q=80",
+        "material": "Cotton Denim", "color": "Medium Blue",
+        "tags": ["classic", "everyday", "straight-leg"],
+        "filename": "classic_blue_straight_jeans.jpg",
+        "url": "https://outfitters.com.pk/cdn/shop/files/F0283209626_1.jpg?v=1726831024&width=493",
+    },
+    {
+        "name": "Tapered Indigo Jeans",
+        "category_slug": "lowers", "subcategory_slug": "jeans",
+        "material": "Raw Denim", "color": "Deep Indigo",
+        "tags": ["premium", "tapered", "heritage"],
+        "filename": "tapered_indigo_jeans.jpg",
+        "url": "https://frenchcrown.in/cdn/shop/products/J-151_7.jpg?v=1700653952&width=112",
+    },
+    {
+        "name": "White Straight Leg Jeans",
+        "category_slug": "lowers", "subcategory_slug": "jeans",
+        "material": "Cotton Denim", "color": "White",
+        "tags": ["summer", "clean", "statement"],
+        "filename": "white_straight_leg_jeans.jpg",
+        "url": "https://tiimg.tistatic.com/fp/1/007/571/white-color-straight-comfortable-daily-wear-denim-rough-jeans-for-men-815.jpg",
     },
 
     # ── Lowers / Trousers ─────────────────────────────────────────────────────
@@ -290,12 +278,20 @@ CATALOG_ITEMS: list[dict] = [
         "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuA1vjQCNS8wOTQFSqkuOLMYHED5_pJGzm0QMLAuSSa_vNXjRnEgiMhKztwh5xdb4iMuQVp6bDXJDVXewMnMIZpKY4F-hnijfB8afF3EiJzx94lLdtmhSZN0nzij1dCrWL43Pevx2g_6D7cNg0vnbzrvF8MVDfUk6mbIp_L_Vk6vLsiZTRuPYuiVZsKwzBdI431F0iWEo_6YNhyLywx5ZCud-Bf7X7Q3l9t9Gv-ujwZQBoPULg9OF034wlmE-EmS4fx70cv71aUvGTdD",
     },
     {
-        "name": "Relaxed Linen Trousers",
+        "name": "Slim Fit Formal Trousers",
         "category_slug": "lowers", "subcategory_slug": "trousers",
-        "material": "Pure Linen", "color": "Ecru",
-        "tags": ["summer", "resort", "relaxed"],
-        "filename": "relaxed_linen_trousers.jpg",
-        "url": "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=600&h=800&fit=crop&q=80",
+        "material": "Polyester Blend", "color": "Black",
+        "tags": ["formal", "office", "slim-fit"],
+        "filename": "slim_fit_formal_trousers.jpg",
+        "url": "https://www.exportleftovers.com/cdn/shop/files/vfe_d43c55cf-287b-47e7-afee-a853d909393c_2048x2048.jpg?v=1768969379",
+    },
+    {
+        "name": "Cotton Dress Trousers",
+        "category_slug": "lowers", "subcategory_slug": "trousers",
+        "material": "Cotton Twill", "color": "Beige",
+        "tags": ["smart-casual", "summer", "versatile"],
+        "filename": "cotton_dress_trousers.jpg",
+        "url": "https://www.almas.pk/cdn/shop/files/STW49_1_31dfbac1-cd51-466e-aeb1-adbb7da85cda.jpg?v=1753985041",
     },
 
     # ── Lowers / Chinos ───────────────────────────────────────────────────────
@@ -308,124 +304,20 @@ CATALOG_ITEMS: list[dict] = [
         "url": "https://lh3.googleusercontent.com/aida-public/AB6AXuCvoU6IY_XC238MVjMw68Z-bhdfIKy5fIplVcAJDUKrn4Tt5E7IHnSQ6H16uOSfPXpqpdg8am4H9llT92GVCiKMnHhPu9LP-cwfhcZHklluKJe7C1JaJpgNRAcoY_QynJ-PCEaGN2cAnvoKbvfCK4a8Hlvsv2UCcOz6VXn0stdM6z8JvDk7C8vsfyUnnNyNLq2r2rJ_Lr2QMDTSrgRE97yu7WhC_53Pt5FzpvAZcUu13lKpyqjR-_AyzL_by6uXsrZ-hfsR8j6j6Ths",
     },
     {
-        "name": "Slim Beige Chinos",
+        "name": "Slim Fit Olive Chinos",
         "category_slug": "lowers", "subcategory_slug": "chinos",
-        "material": "Stretch Twill", "color": "Beige",
-        "tags": ["smart-casual", "workwear", "slim"],
-        "filename": "slim_beige_chinos.jpg",
-        "url": "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Lowers / Shorts ───────────────────────────────────────────────────────
-    {
-        "name": "Tailored Twill Shorts",
-        "category_slug": "lowers", "subcategory_slug": "shorts",
-        "material": "Cotton Twill", "color": "Olive",
-        "tags": ["summer", "casual", "clean-cut"],
-        "filename": "tailored_twill_shorts.jpg",
-        "url": "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Shoes / Sneakers ──────────────────────────────────────────────────────
-    {
-        "name": "White Canvas Low-Tops",
-        "category_slug": "shoes", "subcategory_slug": "sneakers",
-        "material": "Canvas Upper, Rubber Sole", "color": "White",
-        "tags": ["minimal", "summer", "versatile"],
-        "filename": "white_canvas_lowtops.jpg",
-        "url": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&h=800&fit=crop&q=80",
+        "material": "Stretch Cotton", "color": "Olive",
+        "tags": ["smart-casual", "slim-fit", "versatile"],
+        "filename": "slim_fit_olive_chinos.jpg",
+        "url": "https://outfitters.com.pk/cdn/shop/files/F0241308801_3.jpg?v=1727179802&width=493",
     },
     {
-        "name": "Chunky Sole Runners",
-        "category_slug": "shoes", "subcategory_slug": "sneakers",
-        "material": "Mesh & Synthetic", "color": "Triple White",
-        "tags": ["streetwear", "sporty", "chunky"],
-        "filename": "chunky_sole_runners.jpg",
-        "url": "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=600&h=800&fit=crop&q=80",
-    },
-    {
-        "name": "Minimalist Leather Sneakers",
-        "category_slug": "shoes", "subcategory_slug": "sneakers",
-        "material": "Full-Grain Leather", "color": "Off-White",
-        "tags": ["minimal", "premium", "smart-casual"],
-        "filename": "minimalist_leather_sneakers.jpg",
-        "url": "https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Shoes / Boots ─────────────────────────────────────────────────────────
-    {
-        "name": "Leather Chelsea Boots",
-        "category_slug": "shoes", "subcategory_slug": "boots",
-        "material": "Calfskin Leather", "color": "Tan",
-        "tags": ["smart-casual", "autumn", "heritage"],
-        "filename": "leather_chelsea_boots.jpg",
-        "url": "https://images.unsplash.com/photo-1605812860427-4024433a70fd?w=600&h=800&fit=crop&q=80",
-    },
-    {
-        "name": "Suede Ankle Boots",
-        "category_slug": "shoes", "subcategory_slug": "boots",
-        "material": "Suede", "color": "Desert Sand",
-        "tags": ["casual", "transitional", "lace-up"],
-        "filename": "suede_ankle_boots.jpg",
-        "url": "https://images.unsplash.com/photo-1542204165-65bf26472b9b?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Shoes / Loafers ───────────────────────────────────────────────────────
-    {
-        "name": "Suede Penny Loafers",
-        "category_slug": "shoes", "subcategory_slug": "loafers",
-        "material": "Suede", "color": "Chocolate Brown",
-        "tags": ["smart-casual", "preppy", "no-lace"],
-        "filename": "suede_penny_loafers.jpg",
-        "url": "https://images.unsplash.com/photo-1626947346165-4c2288dadc2a?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Shoes / Formal Shoes ──────────────────────────────────────────────────
-    {
-        "name": "Oxford Brogues",
-        "category_slug": "shoes", "subcategory_slug": "formal-shoes",
-        "material": "Polished Leather", "color": "Dark Brown",
-        "tags": ["formal", "office", "classic"],
-        "filename": "oxford_brogues.jpg",
-        "url": "https://images.unsplash.com/photo-1533867617858-e7b97e060509?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Watches / Casual ──────────────────────────────────────────────────────
-    {
-        "name": "Canvas Strap Field Watch",
-        "category_slug": "watches", "subcategory_slug": "casual-watches",
-        "material": "Stainless Steel Case, Canvas Strap", "color": "Olive/Gunmetal",
-        "tags": ["casual", "utility", "outdoor"],
-        "filename": "canvas_strap_field_watch.jpg",
-        "url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Watches / Dress ───────────────────────────────────────────────────────
-    {
-        "name": "Slim Silver Dress Watch",
-        "category_slug": "watches", "subcategory_slug": "dress-watches",
-        "material": "Stainless Steel, Sapphire Crystal", "color": "Silver/White Dial",
-        "tags": ["formal", "minimal", "classic"],
-        "filename": "slim_silver_dress_watch.jpg",
-        "url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&h=800&fit=crop&q=80",
-    },
-    {
-        "name": "Gold Tone Dress Watch",
-        "category_slug": "watches", "subcategory_slug": "dress-watches",
-        "material": "Gold-Plated Steel, Leather Strap", "color": "Gold/Cream Dial",
-        "tags": ["formal", "luxury", "statement"],
-        "filename": "gold_tone_dress_watch.jpg",
-        "url": "https://images.unsplash.com/photo-1548171915-e79a380a2a4b?w=600&h=800&fit=crop&q=80",
-    },
-
-    # ── Watches / Sport ───────────────────────────────────────────────────────
-    {
-        "name": "Stainless Chronograph",
-        "category_slug": "watches", "subcategory_slug": "sport-watches",
-        "material": "316L Stainless Steel, Rubber Strap", "color": "Black/Silver",
-        "tags": ["sport", "chronograph", "rugged"],
-        "filename": "stainless_chronograph.jpg",
-        "url": "https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=600&h=800&fit=crop&q=80",
+        "name": "Tapered Beige Chinos",
+        "category_slug": "lowers", "subcategory_slug": "chinos",
+        "material": "Cotton Twill", "color": "Beige",
+        "tags": ["classic", "workwear", "tapered"],
+        "filename": "tapered_beige_chinos.jpg",
+        "url": "https://be.benetton.com/cdn/shop/files/TBkyd1tkRBKh0z2aAHWurw.jpg?crop=center&height=853&v=1776769349&width=640",
     },
 ]
 

@@ -2,13 +2,18 @@ from pydantic import BaseModel
 
 
 class ExploreItem(BaseModel):
-    id: int
+    id: str
     title: str
     category: str
+    gender: str               # "men" | "women"
     image_url: str
-    aspect_ratio: str = "3/4"
+    source_url: str = ""
+    dominant_color: str = ""  # hex colour from Pinterest pin metadata
+    hashtags: list[str] = []
+    saves: int = 0
 
 
 class ExploreListResponse(BaseModel):
     items: list[ExploreItem]
     total: int
+    cached: bool = True  # False when serving seed data before Apify responds

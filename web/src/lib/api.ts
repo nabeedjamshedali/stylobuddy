@@ -114,6 +114,62 @@ export interface GenerateOutfitResponse {
   suggest_mode: 'lowers' | 'uppers' | null
 }
 
+// ── Saved looks (localStorage) ───────────────────────────────────────────────
+
+export interface SavedLook {
+  id: string
+  savedAt: string           // ISO date string
+  aesthetic: string
+  description: string
+  palette: string[]
+  tags: string[]
+  combinations: OutfitCombination[]
+  styling_tips: string[]
+  suggest_mode: 'lowers' | 'uppers' | null
+  heroImage: string         // first item's image_url
+}
+
+const SAVED_KEY = 'stylobuddy_saved_looks'
+
+export function getSavedLooks(): SavedLook[] {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]')
+  } catch {
+    return []
+  }
+}
+
+export function saveLook(result: GenerateOutfitResponse): SavedLook {
+  const existing = getSavedLooks()
+  const heroImage =
+    result.combinations[0]?.items[0]?.image_url ?? ''
+  const look: SavedLook = {
+    id: result.recommendation_id,
+    savedAt: new Date().toISOString(),
+    aesthetic: result.aesthetic,
+    description: result.description,
+    palette: result.palette,
+    tags: result.tags,
+    combinations: result.combinations,
+    styling_tips: result.styling_tips,
+    suggest_mode: result.suggest_mode ?? null,
+    heroImage,
+  }
+  // Avoid duplicates
+  const filtered = existing.filter((l) => l.id !== look.id)
+  localStorage.setItem(SAVED_KEY, JSON.stringify([look, ...filtered]))
+  return look
+}
+
+export function deleteSavedLook(id: string): void {
+  const updated = getSavedLooks().filter((l) => l.id !== id)
+  localStorage.setItem(SAVED_KEY, JSON.stringify(updated))
+}
+
+export function isLookSaved(id: string): boolean {
+  return getSavedLooks().some((l) => l.id === id)
+}
+
 // ── Recommendation API ────────────────────────────────────────────────────────
 
 /**
@@ -124,7 +180,7 @@ export interface GenerateOutfitResponse {
  */
 export async function generateOutfit(
   itemIds: string[],
-  opts?: { occasion?: string; preferences?: string; token?: string }
+  opts?: { occasion?: string; preferences?: string; token?: string; photoType?: 'uppers' | 'lowers' }
 ): Promise<GenerateOutfitResponse> {
   const headers: Record<string, string> = {}
   if (opts?.token) headers['Authorization'] = `Bearer ${opts.token}`
@@ -135,6 +191,7 @@ export async function generateOutfit(
       item_ids: itemIds,
       occasion: opts?.occasion,
       preferences: opts?.preferences,
+      photo_type: opts?.photoType ?? null,
     }),
   })
 }

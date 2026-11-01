@@ -36,13 +36,25 @@ class Config:
 
     # LLM Settings
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
-    LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1500"))
+    LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4000"))
 
     # JWT Auth
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "stylobuddy-secret-change-in-production")
     JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
     JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+
+    # TACN Model (offline/pre-filter scoring)
+    TACN_MODEL_PATH = os.getenv("TACN_MODEL_PATH", "tacn_weights.pth")
+    TACN_TOP_K = int(os.getenv("TACN_TOP_K", "10"))  # top pairs to send to LLM after pre-filter
+    TACN_SCORE_THRESHOLD = float(os.getenv("TACN_SCORE_THRESHOLD", "-0.5"))  # min score to keep
+    TACN_PREFILTER_ITEM_THRESHOLD = int(os.getenv("TACN_PREFILTER_ITEM_THRESHOLD", "6"))  # trigger pre-filter when total items >= this
+
+    # Apify — Pinterest trend scraping
+    APIFY_API_TOKEN          = os.getenv("APIFY_API_TOKEN", "")
+    APIFY_BASE_URL           = os.getenv("APIFY_BASE_URL", "https://api.apify.com/v2")
+    APIFY_ACTOR_ID           = os.getenv("APIFY_ACTOR_ID", "automation-lab~pinterest-scraper")
+    APIFY_CACHE_TTL_SECONDS  = int(os.getenv("APIFY_CACHE_TTL_SECONDS", "86400"))
 
     # CORS
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
