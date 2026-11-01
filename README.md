@@ -1,13 +1,35 @@
 # StyloBuddy
 
-StyloBuddy is an outfit recommendation platform that combines a small trained compatibility model with an LLM styling assistant. This repository holds the whole project in one place.
+StyloBuddy is an outfit recommendation platform that combines a small trained compatibility model with an LLM styling assistant.
 
-| Folder | What it is | Stack |
+This repository is the entry point. Each part of the project lives in its own repository, and this repo links to all of them.
+
+| Part | Repository | Stack |
 |---|---|---|
-| [`web/`](web) | Web portal | Next.js, TypeScript, Tailwind CSS |
-| [`backend/`](backend) | API behind the web portal | FastAPI, PostgreSQL (Supabase), PyTorch, PydanticAI, JWT auth |
-| [`mobile/`](mobile) | Mobile app | Flutter, Firebase |
-| [`model/`](model) | TACN model research code (Type-Aware Compatibility Network) | PyTorch |
+| Web portal | [stylobuddy-web](https://github.com/nabeedjamshedali/stylobuddy-web) | Next.js, TypeScript, Tailwind CSS |
+| Backend API | [stylobuddy-backend](https://github.com/nabeedjamshedali/stylobuddy-backend) | FastAPI, PostgreSQL (Supabase), PyTorch, PydanticAI, JWT auth |
+| Mobile app | [stylobuddy-mobile](https://github.com/nabeedjamshedali/stylobuddy-mobile) | Flutter, Firebase |
+| TACN model (research code) | [stylobuddy-model](https://github.com/nabeedjamshedali/stylobuddy-model) | PyTorch |
+
+## Get the code
+
+Everything at once:
+
+```
+git clone --recurse-submodules https://github.com/nabeedjamshedali/stylobuddy.git
+```
+
+If you already cloned without `--recurse-submodules`:
+
+```
+git submodule update --init --recursive
+```
+
+Only one part, for example the mobile app:
+
+```
+git clone https://github.com/nabeedjamshedali/stylobuddy-mobile.git
+```
 
 ## Research
 
@@ -15,17 +37,6 @@ The model and the hybrid TACN + LLM approach are described in the technical repo
 
 *StyloBuddy: A Hybrid Deep Learning and LLM Framework for Trend-Aware Outfit Recommendation*, [doi:10.5281/zenodo.23838353](https://doi.org/10.5281/zenodo.23838353).
 
-## Running the parts
+## Folders in this repo
 
-Each folder is self-contained.
-
-- Web portal: see `web/package.json` (`npm install`, `npm run dev`).
-- Backend: see `backend/requirements.txt` and `backend/alembic.ini` (install requirements, run migrations, start with `uvicorn app.main:app`).
-- Mobile app: `flutter pub get` inside `mobile/`.
-- Model: see [`model/README.md`](model/README.md) for training.
-
-Configuration files with secrets (`.env`, `.env.local`, `android/key.properties`) are not part of the repository.
-
-## History
-
-This repository was assembled from three earlier repositories (`stylobuddy`, `stylobuddy-frontend`, `stylobuddy-outfit-recommendator`). Their commit history is kept.
+`web/`, `backend/`, `mobile/` and `model/` are git submodules that point to the repositories above. Work happens inside each of those repositories. After changes are pushed there, update this repo's pointers with `git submodule update --remote` and commit.

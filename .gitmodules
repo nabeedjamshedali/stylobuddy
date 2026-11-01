@@ -1,0 +1,12 @@
+[submodule "backend"]
+	path = backend
+	url = https://github.com/nabeedjamshedali/stylobuddy-backend.git
+[submodule "web"]
+	path = web
+	url = https://github.com/nabeedjamshedali/stylobuddy-web.git
+[submodule "mobile"]
+	path = mobile
+	url = https://github.com/nabeedjamshedali/stylobuddy-mobile.git
+[submodule "model"]
+	path = model
+	url = https://github.com/nabeedjamshedali/stylobuddy-model.git

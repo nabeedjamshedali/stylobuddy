@@ -1,7 +1,0 @@
-{
-  "project": "StyloBuddy",
-  "schema_version": 1,
-  "description": "Machine-readable assertion ledger. Mirrors the status table in docs/foundation/06-validation-contract.md; a mismatch between the two is itself a finding for the contract-auditor.",
-  "global_assertions": {},
-  "features": {}
-}
